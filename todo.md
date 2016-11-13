@@ -1,17 +1,25 @@
 # TO DO, estendere babel
+## operativamente
+- definire la struttura lista di contribuenti e formato di un contribuente
+- cambiare formato *xroute* e *route* di modo che abbiano entrambre una lista di contribuenti e un contatore di contributi
+  - per xroute va fatto davvero???
+- cambiare *find_xroute* e *find_installed_route* di modo che restituiscano rispettivamente una xroute o una route con il campo contributo correttamente calcolato
+- modificare la firma e le chiamate a *really_send_update* includendo il contributo relativo al prefix per cui si manda l'update
+- aggiungere (in gergo "accumulare") nel buffer di update il contributo; prestare attenzione al calcolo della lunghezza del pacchetto
+- modificare il parsing degli update (*parse_packet*):
+  - **come ci si assicura che in tutti gli update ci sia il campo NH? Come si fa a vedere se siamo noi il NH? Come si fa a mantenere questa info durante il parsing del SUBSEQUENT update tlv?**
+  - **come si pesca l'id del vicino da cui abbiamo ricevuto il messaggio?**
+  - le info sopra ci servono per mantenere la lista dei contribuenti; il prefix e il contributo da gestire ci arrivano come campi del messagio. !!!ricordarsi di aggiornare nel codice i puntatori ai vari field. :( aritmetica coi putantori SOB
+  - implementare aggiornamento lista dei contribuenti
+- *DA DISCUTERE LA validity DEI CONTRIBUTI*
 
+### Logica
 - Estendere le tabelle/strutture dati esistenti affinché si mantengano correttamente i flag “through me” e i “contributi”
-  - Estenderei la tabella dei vicini per farla diventare così
-| Source | vicino | metrica | seqno | Next-hop | Flag | Lista contribuenti                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-|--------|--------|---------|-------|----------|------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|        |        |         |       |          |      | Un elemento della lista contribuenti è un coppia <vref,con>. vref è il riferimento al vicino che sappiamo passa attraverso noi per raggiungere la rotta Source*; con è un intero ad indicare il contributo per S* che vref stesso ci ha comunicato  Con la lista dei contribuenti non è necessario mantenere i contributi dei vicini che non contribuiscono! Si risparmia memoria XD. Prima infatti si diceva di mantenere il contributo dei vicini per le varie destinazioni anche se essi non passavano attraverso di noi, ma per il calcolo della centralità non è necessario |
-- ancora meglio in questo senso è mantenere un solo contatore all'interno di ogni struct babel_route;
-  - tale contatore (dichiarato "unsigned short contributes"), andrà gestito così. Quando arriva un'update con la  sua tripla <v,H(S),c(S)> allora se H(S)==me-> nella mia tabella di routing per la destinazione S vado a fare
-  ME.RoutingTable[S].contributes+=c(S)
-## occio che forse si può fare così. La send <n,h(s),c(s)> non è proprio sensato farlo in multicast. Si può togliere h(s) dalla tripla e mandare <n,c(s)> solo che poi sta info diventa unicast. Se slegassimo sti pacchetti dagli update andrebbe anche bene, ma siccome dobbiamo estendere gli UPDATE allora ci tocca usare la tripla classica
+  - Un elemento della lista contribuenti è un coppia <vref,con>. *vref* è il riferimento al vicino che sappiamo passa attraverso noi per raggiungere la rotta S; *con* è un intero ad indicare il contributo per S che *vref* stesso ci ha comunicato.  Con la lista dei contribuenti non è necessario mantenere i contributi dei vicini che non contribuiscono! Si risparmia memoria XD. Prima infatti si diceva di mantenere il contributo dei vicini per le varie destinazioni anche se essi non passavano attraverso di noi, ma per il calcolo della centralità non è necessario
+  - Per calcolare c(S) bisogna scorrere tutta la lista dei contribuenti e questo può essere ineffeciente quando il numero di diversi vicini contribuenti è alto. Piuttosto si può decidere di mantenere un contatore per ogni entry S nella routing table. Quando si riceve un *{v,NH(S),c(S)}* bisogna a questo punto: Aggiornare la lista dei contribuenti (complex lineare nel numero di vicini perchè bisogna cercare il contributo precedente). + costo costante di aggiornare il contatore (==> si sottrae il vecchio contributo e si somma il nuovo, non si fa niente se il contributo è uguale al precedente, si elimina il contributo quando non viene rinnovato entro una scadenza! da definire tempo validità...)
 
-
-- Cambiare il formato degli update e modificare l'invio degli stessi, affinchè traportino le centrality info
-  - non capisco quello attuale nè come si fa a crearne uno! sob, concettualmente per estenderlo però non dovrebbe essere tanto difficile
+- Cambiare il formato degli update e modificare l'invio degli stessi, affinchè trasportino le centrality info
+  - per ora è stato abbastanza facile aggiungere un campo.
+  - Studierei bene la logica di *flushupdates* che riesce a recuperare dalle varie tabelle tutte le info mancanti prima di fare *really_send_update*. Con le giuste modifiche dovrei essere in grado di fare qui il processing delle rotte di modo che si renda disponibile il c(S) e l'NH(S) da includere nell'update
 - Aggiornare la routine che fa il parsing degli update di modo che gestisca correttamente il calcolo della centralità
   - se mi vengono i punti sopra allora non dovrebbe essere difficile, basta manipolare di conseguenza le strutture dati dopo aver correttamente letto un update esteso

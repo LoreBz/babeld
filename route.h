@@ -40,7 +40,7 @@ struct babel_route {
     short installed;
     short channels_len;
     unsigned char *channels;
-    //la lista che ci siamo detti
+    struct contribute *contributors;
     struct babel_route *next;
 };
 
