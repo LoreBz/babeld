@@ -8,6 +8,7 @@
 - ancora meglio in questo senso è mantenere un solo contatore all'interno di ogni struct babel_route;
   - tale contatore (dichiarato "unsigned short contributes"), andrà gestito così. Quando arriva un'update con la  sua tripla <v,H(S),c(S)> allora se H(S)==me-> nella mia tabella di routing per la destinazione S vado a fare
   ME.RoutingTable[S].contributes+=c(S)
+## occio che forse si può fare così. La send <n,h(s),c(s)> non è proprio sensato farlo in multicast. Si può togliere h(s) dalla tripla e mandare <n,c(s)> solo che poi sta info diventa unicast. Se slegassimo sti pacchetti dagli update andrebbe anche bene, ma siccome dobbiamo estendere gli UPDATE allora ci tocca usare la tripla classica
 
 
 - Cambiare il formato degli update e modificare l'invio degli stessi, affinchè traportino le centrality info

@@ -1,5 +1,6 @@
 # Schema invio UPDATE
-
+## allora sto modificando le start_message e end_message per contare byte in più di payload
+- ho trovato posti da modificare a linea 1561 1197 1200 di message.c 
 ## documentazione codice send_update
 
 ```c

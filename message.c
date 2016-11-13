@@ -448,6 +448,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             unsigned char channels[MAX_CHANNEL_HOPS];
             int channels_len = MAX_CHANNEL_HOPS;
             unsigned short interval, seqno, metric;
+            unsigned short magicnumber;//occio magic number
             int rc, parsed_len;
             if(len < 10) {
                 if(len < 2 || message[3] & 0x80)
@@ -457,6 +458,9 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             DO_NTOHS(interval, message + 6);
             DO_NTOHS(seqno, message + 8);
             DO_NTOHS(metric, message + 10);
+            DO_NTOHS(magicnumber, message + 12);
+            printf("MAGIC NUMBER %i HAS ARRIVED MARRY XMAS\n", magicnumber);
+            //DA QUA IN POI BISOGNEREBBE SPOSTARE ALGBERA PUNTATORI A CAMPI SUCCESSIVI +2
             if(message[5] == 0 ||
                (message[2] == 1 ? have_v4_prefix : have_v6_prefix))
                 rc = network_prefix(message[2], message[4], message[5],
@@ -1191,11 +1195,11 @@ really_send_update(struct interface *ifp,
 
     if(src_plen == 0)
         start_message(ifp, MESSAGE_UPDATE, 10 + (real_plen + 7) / 8 - omit +
-                      channels_size);
+                      channels_size +2);//occio +2
     else
         start_message(ifp, MESSAGE_UPDATE_SRC_SPECIFIC,
                       10 + (real_plen + 7) / 8 - omit +
-                      (real_src_plen + 7) / 8 + channels_size);
+                      (real_src_plen + 7) / 8 + channels_size + 2);//occio +2
     accumulate_byte(ifp, v4 ? 1 : 2);
     if(src_plen != 0)
         accumulate_byte(ifp, real_src_plen);
@@ -1206,6 +1210,8 @@ really_send_update(struct interface *ifp,
     accumulate_short(ifp, (ifp->update_interval + 5) / 10);
     accumulate_short(ifp, seqno);
     accumulate_short(ifp, metric);
+    //magic number see if arrives, added after metric
+    accumulate_short(ifp, 56);
     accumulate_bytes(ifp, real_prefix + omit, (real_plen + 7) / 8 - omit);
     if(src_plen != 0)
         accumulate_bytes(ifp, real_src_prefix, (real_src_plen + 7) / 8);
@@ -1217,11 +1223,11 @@ really_send_update(struct interface *ifp,
     }
     if(src_plen == 0)
         end_message(ifp, MESSAGE_UPDATE, 10 + (real_plen + 7) / 8 - omit +
-                    channels_size);
+                    channels_size + 2);//occio +2
     else
         end_message(ifp, MESSAGE_UPDATE_SRC_SPECIFIC,
                     10 + (real_plen + 7) / 8 - omit +
-                    (real_src_plen + 7) / 8 + channels_size);
+                    (real_src_plen + 7) / 8 + channels_size + 2);//occio +2
 
     if(flags & 0x80) {
         memcpy(ifp->buffered_prefix, prefix, 16);
@@ -1552,7 +1558,7 @@ send_wildcard_retraction(struct interface *ifp)
     if(!if_up(ifp))
         return;
 
-    start_message(ifp, MESSAGE_UPDATE, 10);
+    start_message(ifp, MESSAGE_UPDATE, 10 + 2);//occio +2
     accumulate_byte(ifp, 0);
     accumulate_byte(ifp, 0);
     accumulate_byte(ifp, 0);
@@ -1560,7 +1566,8 @@ send_wildcard_retraction(struct interface *ifp)
     accumulate_short(ifp, 0xFFFF);
     accumulate_short(ifp, myseqno);
     accumulate_short(ifp, 0xFFFF);
-    end_message(ifp, MESSAGE_UPDATE, 10);
+    accumulate_short(ifp, 56);//occio magic
+    end_message(ifp, MESSAGE_UPDATE, 10 + 2);//occio +2
 
     ifp->have_buffered_id = 0;
 }
