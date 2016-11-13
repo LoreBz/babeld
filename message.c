@@ -40,6 +40,7 @@ THE SOFTWARE.
 #include "resend.h"
 #include "message.h"
 #include "configuration.h"
+#include "centrality.h"
 
 unsigned char packet_header[4] = {42, 2};
 
@@ -1117,7 +1118,8 @@ really_send_update(struct interface *ifp,
                    const unsigned char *prefix, unsigned char plen,
                    const unsigned char *src_prefix, unsigned char src_plen,
                    unsigned short seqno, unsigned short metric,
-                   unsigned char *channels, int channels_len)
+                   unsigned short contribute, unsigned char *channels,
+                   int channels_len)
 {
     int add_metric, v4, real_plen, omit = 0;
     const unsigned char *real_prefix;
@@ -1125,7 +1127,7 @@ really_send_update(struct interface *ifp,
     int real_src_plen = 0;
     unsigned short flags = 0;
     int channels_size;
-
+    printf("really_send_update: contribute=%i\n", contribute);
     if(diversity_kind != DIVERSITY_CHANNEL)
         channels_len = -1;
 
@@ -1210,8 +1212,8 @@ really_send_update(struct interface *ifp,
     accumulate_short(ifp, (ifp->update_interval + 5) / 10);
     accumulate_short(ifp, seqno);
     accumulate_short(ifp, metric);
-    //magic number see if arrives, added after metric
-    accumulate_short(ifp, 56);
+    //contribute computed by flushupdates for prefix, added after metric
+    accumulate_short(ifp, contribute);
     accumulate_bytes(ifp, real_prefix + omit, (real_plen + 7) / 8 - omit);
     if(src_plen != 0)
         accumulate_bytes(ifp, real_src_prefix, (real_src_plen + 7) / 8);
@@ -1288,6 +1290,8 @@ flushupdates(struct interface *ifp)
     unsigned char last_plen = 0xFF;
     unsigned char last_src_plen = 0xFF;
     int i;
+    struct contribute *contributors;
+    unsigned short route_contribute = 0;
 
     if(ifp == NULL) {
         struct interface *ifp_aux;
@@ -1309,7 +1313,7 @@ flushupdates(struct interface *ifp)
 
         debugf("  (flushing %d buffered updates on %s (%d))\n",
                n, ifp->name, ifp->ifindex);
-
+        printf("flushing updates, wanna see if contributes are there\n");
         /* In order to send fewer update messages, we want to send updates
            with the same router-id together, with IPv6 going out before IPv4. */
 
@@ -1342,10 +1346,12 @@ flushupdates(struct interface *ifp)
                                          b[i].src_prefix, b[i].src_plen);
 
             if(xroute && (!route || xroute->metric <= kernel_metric)) {
+                /*added 1 after metric as 1contribute associated to routes
+                 exported by this node */
                 really_send_update(ifp, myid,
                                    xroute->prefix, xroute->plen,
                                    xroute->src_prefix, xroute->src_plen,
-                                   myseqno, xroute->metric,
+                                   myseqno, xroute->metric, 1,
                                    NULL, 0);
                 last_prefix = xroute->prefix;
                 last_plen = xroute->plen;
@@ -1390,11 +1396,16 @@ flushupdates(struct interface *ifp)
                            MIN(route->channels_len, MAX_CHANNEL_HOPS - 1));
                     chlen = 1 + MIN(route->channels_len, MAX_CHANNEL_HOPS - 1);
                 }
+                /*here it is the case to compute the total contribute for the
+                given route
+                */
+                contributors = route->contributors;
+                route_contribute = total_contribute(contributors);
 
                 really_send_update(ifp, route->src->id,
                                    route->src->prefix, route->src->plen,
                                    route->src->src_prefix, route->src->src_plen,
-                                   seqno, metric,
+                                   seqno, metric, route_contribute,
                                    channels, chlen);
                 update_source(route->src, seqno, metric);
                 last_prefix = route->src->prefix;
@@ -1404,9 +1415,10 @@ flushupdates(struct interface *ifp)
             } else {
             /* There's no route for this prefix.  This can happen shortly
                after an xroute has been retracted, so send a retraction. */
+               //for no route we put 0 as contribute
                 really_send_update(ifp, myid, b[i].prefix, b[i].plen,
                                    b[i].src_prefix, b[i].src_plen,
-                                   myseqno, INFINITY, NULL, -1);
+                                   myseqno, INFINITY, 0, NULL, -1);
             }
         }
         schedule_flush_now(ifp);

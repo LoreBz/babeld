@@ -8,7 +8,7 @@ unsigned short
 total_contribute(struct contribute *contributors)
 {
   unsigned short total = 0;
-
+  printf("Computing total contribute for prefix ???\n");
   if (!contributors)
     return 0;
   struct contribute *contributor = contributors;
@@ -16,5 +16,6 @@ total_contribute(struct contribute *contributors)
     contributor=contributor->next;
     total = total + contributor->contribute;
   }
+
   return total;
 }
