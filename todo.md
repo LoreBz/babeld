@@ -1,5 +1,14 @@
 # TO DO, estendere babel
 ## operativamente
+#### creare una rete decente e controllabile ai fini di checkare consistenza calcolo centralità
+
+**attualmente ho questo meccanismo
+1) flushupdate va a pescare i contributors e aggrega i contributi a partire da una rotta! not bad
+2) really_send_update manda tutto di là
+3) di là arriva e il pacchetto è parsato correttamente**
+###cosa manca allora?
+**1) Implmentare la logica di onReceive(UPDATE), magari smanettando su parse_update_subtlv
+2) mettere belle istruzioni di stampa quando si fa flush->cerca rotta & calcola contributi->manda update; ricevi e aggiorna contribuenti **
 - definire la struttura lista di contribuenti e formato di un contribuente
 - cambiare formato *xroute* e *route* di modo che abbiano entrambre una lista di contribuenti e un contatore di contributi
   - per xroute va fatto davvero???

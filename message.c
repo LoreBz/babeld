@@ -42,6 +42,8 @@ THE SOFTWARE.
 #include "configuration.h"
 #include "centrality.h"
 
+void print_hex(const unsigned char *s);
+
 unsigned char packet_header[4] = {42, 2};
 
 int split_horizon = 1;
@@ -416,8 +418,10 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             }
             memcpy(router_id, message + 4, 8);
             have_router_id = 1;
-            debugf("Received router-id %s from %s on %s.\n",
-                   format_eui64(router_id), format_address(from), ifp->name);
+            /*debugf("Received router-id %s from %s on %s.\n",
+                   format_eui64(router_id), format_address(from), ifp->name);*/
+            printf("Received router-id %s from %s on %s.\n",
+                    format_eui64(router_id), format_address(from), ifp->name);
         } else if(type == MESSAGE_NH) {
             unsigned char nh[16];
             int rc;
@@ -433,9 +437,12 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                 have_v6_nh = 0;
                 goto fail;
             }
-            debugf("Received nh %s (%d) from %s on %s.\n",
+            /*debugf("Received nh %s (%d) from %s on %s.\n",
                    format_address(nh), message[2],
-                   format_address(from), ifp->name);
+                   format_address(from), ifp->name);*/
+           printf("Received nh %s (%d) from %s on %s.\n",
+                  format_address(nh), message[2],
+                  format_address(from), ifp->name);
             if(message[2] == 1) {
                 memcpy(v4_nh, nh, 16);
                 have_v4_nh = 1;
@@ -451,6 +458,9 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             unsigned short interval, seqno, metric;
             unsigned short magicnumber;//occio magic number
             int rc, parsed_len;
+            printf("PARSING A MESSAGE_UPDATE: ");
+            //printf("%#08x\n", message);
+            print_hex(message);
             if(len < 10) {
                 if(len < 2 || message[3] & 0x80)
                     have_v4_prefix = have_v6_prefix = 0;
@@ -465,9 +475,9 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             if(message[5] == 0 ||
                (message[2] == 1 ? have_v4_prefix : have_v6_prefix))
                 rc = network_prefix(message[2], message[4], message[5],
-                                    message + 12,
+                                    message + 14,
                                     message[2] == 1 ? v4_prefix : v6_prefix,
-                                    len - 10, prefix);
+                                    len - 10, prefix);//forse len-12?
             else
                 rc = -1;
             if(rc < 0) {
@@ -475,7 +485,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     have_v4_prefix = have_v6_prefix = 0;
                 goto fail;
             }
-            parsed_len = 10 + rc;
+            parsed_len = 10 + rc;//forse 12+rc?
 
             plen = message[4] + (message[2] == 1 ? 96 : 0);
 
@@ -501,12 +511,16 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                 fprintf(stderr, "Received prefix with no router id.\n");
                 goto fail;
             }
-            debugf("Received update%s%s for %s from %s on %s.\n",
+            /*debugf("Received update%s%s for %s from %s on %s.\n",
                    (message[3] & 0x80) ? "/prefix" : "",
                    (message[3] & 0x40) ? "/id" : "",
                    format_prefix(prefix, plen),
-                   format_address(from), ifp->name);
-
+                   format_address(from), ifp->name);*/
+             printf("Received update%s%s for %s from %s on %s.\n",
+                    (message[3] & 0x80) ? "/prefix" : "",
+                    (message[3] & 0x40) ? "/id" : "",
+                    format_prefix(prefix, plen),
+                    format_address(from), ifp->name);
             if(message[2] == 0) {
                 if(metric < 0xFFFF) {
                     fprintf(stderr,
@@ -529,7 +543,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                 if(!ifp->ipv4)
                     goto done;
             }
-
+          //ohoh, qua si può smanettare un po', e' il caso di dare un occhiata
             parse_update_subtlv(ifp, metric, message + 2 + parsed_len,
                                 len - parsed_len, channels, &channels_len);
             update_route(router_id, prefix, plen, zeroes, 0, seqno,
@@ -1347,7 +1361,8 @@ flushupdates(struct interface *ifp)
 
             if(xroute && (!route || xroute->metric <= kernel_metric)) {
                 /*added 1 after metric as 1contribute associated to routes
-                 exported by this node */
+                 exported by this node.
+                 */
                 really_send_update(ifp, myid,
                                    xroute->prefix, xroute->plen,
                                    xroute->src_prefix, xroute->src_plen,
@@ -1398,6 +1413,9 @@ flushupdates(struct interface *ifp)
                 }
                 /*here it is the case to compute the total contribute for the
                 given route
+                Here instead the real contribute for the buffered prefix should
+                be computed and inserted
+                unsigned short contr=compute_contr_for_prefix(b[i])
                 */
                 contributors = route->contributors;
                 route_contribute = total_contribute(contributors);
@@ -2093,4 +2111,11 @@ handle_request(struct neighbour *neigh, const unsigned char *prefix,
                                   seqno, id, hop_count - 1);
     record_resend(RESEND_REQUEST, prefix, plen, src_prefix, src_plen, seqno, id,
                   neigh->ifp, 0);
+}
+
+void print_hex(const unsigned char *s)
+{
+  while(*s)
+    printf("%02x ", (unsigned int) *s++);
+  printf("\n");
 }

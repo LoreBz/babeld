@@ -1,5 +1,15 @@
 # COMMENTI SUL CODICE BABEL
 
+## scoperte recenti
+```c
+/* Parse a network prefix, encoded in the somewhat baroque compressed
+   representation used by Babel.  Return the number of bytes parsed. */
+static int
+network_prefix(int ae, int plen, unsigned int omitted,
+               const unsigned char *p, const unsigned char *dp,
+               unsigned int len, unsigned char *p_r)
+```
+
 #### babeld.c:
 - tutte le righe iniziali (sono alla 528 ora), sono dedicate al parsing dei parametri, dei file di configurazione, controllo dei paramateri di inizializzazione ecc. Non dvorei doverci mettere le mani.
 - Si fa un uso criminale di goto ovunque
