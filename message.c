@@ -125,12 +125,15 @@ network_prefix(int ae, int plen, unsigned int omitted,
 }
 
 static void
-parse_update_subtlv(struct interface *ifp, int metric,
+parse_update_subtlv(struct interface *ifp,
+                    const unsigned char *prefix, unsigned char plen,
+                    const unsigned char *from, int metric,
                     const unsigned char *a, int alen,
                     unsigned char *channels, int *channels_len_return)
 {
     int type, len, i = 0;
     int channels_len;
+    unsigned short contribute;
 
     /* This will be overwritten if there's a DIVERSITY_HOPS sub-TLV. */
     if(*channels_len_return < 1 || (ifp->flags & IF_FARAWAY)) {
@@ -168,6 +171,14 @@ parse_update_subtlv(struct interface *ifp, int metric,
         } else if(type == SUBTLV_DIVERSITY) {
             memcpy(channels, a + i + 2, MIN(len, *channels_len_return));
             channels_len = MIN(len, *channels_len_return);
+        } else if (type == SUBTLV_CENTRALITY){
+          printf("SUBTLV_CENTRALITY RECEIVED\t");
+          DO_NTOHS(contribute, a + i + 2);
+          printf("contribute in subtlv was: %i\n", contribute);
+          printf("Centrality Info<Prefix:%s - neigh:%s - contribute: %i>\n",
+                format_prefix(prefix, plen),
+                format_address(from),
+                contribute);
         } else {
             debugf("Received unknown update sub-TLV %d.\n", type);
         }
@@ -456,7 +467,6 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             unsigned char channels[MAX_CHANNEL_HOPS];
             int channels_len = MAX_CHANNEL_HOPS;
             unsigned short interval, seqno, metric;
-            unsigned short magicnumber;//occio magic number
             int rc, parsed_len;
             printf("PARSING A MESSAGE_UPDATE: ");
             //printf("%#08x\n", message);
@@ -469,15 +479,12 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             DO_NTOHS(interval, message + 6);
             DO_NTOHS(seqno, message + 8);
             DO_NTOHS(metric, message + 10);
-            DO_NTOHS(magicnumber, message + 12);
-            printf("MAGIC NUMBER %i HAS ARRIVED MARRY XMAS\n", magicnumber);
-            //DA QUA IN POI BISOGNEREBBE SPOSTARE ALGBERA PUNTATORI A CAMPI SUCCESSIVI +2
             if(message[5] == 0 ||
                (message[2] == 1 ? have_v4_prefix : have_v6_prefix))
                 rc = network_prefix(message[2], message[4], message[5],
-                                    message + 14,
+                                    message + 12,
                                     message[2] == 1 ? v4_prefix : v6_prefix,
-                                    len - 10, prefix);//forse len-12?
+                                    len - 10, prefix);
             else
                 rc = -1;
             if(rc < 0) {
@@ -485,7 +492,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     have_v4_prefix = have_v6_prefix = 0;
                 goto fail;
             }
-            parsed_len = 10 + rc;//forse 12+rc?
+            parsed_len = 10 + rc;
 
             plen = message[4] + (message[2] == 1 ? 96 : 0);
 
@@ -544,7 +551,8 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     goto done;
             }
           //ohoh, qua si può smanettare un po', e' il caso di dare un occhiata
-            parse_update_subtlv(ifp, metric, message + 2 + parsed_len,
+            parse_update_subtlv(ifp, prefix, plen, from,
+                                metric, message + 2 + parsed_len,
                                 len - parsed_len, channels, &channels_len);
             update_route(router_id, prefix, plen, zeroes, 0, seqno,
                          metric, interval, neigh, nh,
@@ -658,7 +666,8 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     goto done;
             }
 
-            parse_update_subtlv(ifp, metric, message + 2 + parsed_len,
+            parse_update_subtlv(ifp, prefix, plen, from,
+                                metric, message + 2 + parsed_len,
                                 len - parsed_len, channels, &channels_len);
             update_route(router_id, prefix, plen, src_prefix, src_plen,
                          seqno, metric, interval, neigh, nh,
@@ -1141,11 +1150,17 @@ really_send_update(struct interface *ifp,
     int real_src_plen = 0;
     unsigned short flags = 0;
     int channels_size;
+    int contribute_size;
+    contribute=123;
     printf("really_send_update: contribute=%i\n", contribute);
     if(diversity_kind != DIVERSITY_CHANNEL)
         channels_len = -1;
 
     channels_size = channels_len >= 0 ? channels_len + 2 : 0;
+
+    /*for the moment centrality subtlv should always be added to updates
+    and always carry a contribute (ushort) of size 2*/
+    contribute_size = 4;
 
     if(!if_up(ifp))
         return;
@@ -1211,11 +1226,11 @@ really_send_update(struct interface *ifp,
 
     if(src_plen == 0)
         start_message(ifp, MESSAGE_UPDATE, 10 + (real_plen + 7) / 8 - omit +
-                      channels_size +2);//occio +2
+                      channels_size + contribute_size);//occio + contribute_size
     else
         start_message(ifp, MESSAGE_UPDATE_SRC_SPECIFIC,
                       10 + (real_plen + 7) / 8 - omit +
-                      (real_src_plen + 7) / 8 + channels_size + 2);//occio +2
+                      (real_src_plen + 7) / 8 + channels_size + contribute_size);//occio + contribute_size
     accumulate_byte(ifp, v4 ? 1 : 2);
     if(src_plen != 0)
         accumulate_byte(ifp, real_src_plen);
@@ -1226,8 +1241,6 @@ really_send_update(struct interface *ifp,
     accumulate_short(ifp, (ifp->update_interval + 5) / 10);
     accumulate_short(ifp, seqno);
     accumulate_short(ifp, metric);
-    //contribute computed by flushupdates for prefix, added after metric
-    accumulate_short(ifp, contribute);
     accumulate_bytes(ifp, real_prefix + omit, (real_plen + 7) / 8 - omit);
     if(src_plen != 0)
         accumulate_bytes(ifp, real_src_prefix, (real_src_plen + 7) / 8);
@@ -1237,13 +1250,19 @@ really_send_update(struct interface *ifp,
         accumulate_byte(ifp, channels_len);
         accumulate_bytes(ifp, channels, channels_len);
     }
+
+    //try to add sub-TLV for centrality
+    accumulate_byte(ifp, SUBTLV_CENTRALITY);
+    accumulate_byte(ifp, contribute_size);
+    accumulate_short(ifp, contribute);
+
     if(src_plen == 0)
         end_message(ifp, MESSAGE_UPDATE, 10 + (real_plen + 7) / 8 - omit +
-                    channels_size + 2);//occio +2
+                    channels_size + contribute_size);//occio + contribute_size
     else
         end_message(ifp, MESSAGE_UPDATE_SRC_SPECIFIC,
                     10 + (real_plen + 7) / 8 - omit +
-                    (real_src_plen + 7) / 8 + channels_size + 2);//occio +2
+                    (real_src_plen + 7) / 8 + channels_size + contribute_size);//occio + contribute_size
 
     if(flags & 0x80) {
         memcpy(ifp->buffered_prefix, prefix, 16);
@@ -1588,7 +1607,7 @@ send_wildcard_retraction(struct interface *ifp)
     if(!if_up(ifp))
         return;
 
-    start_message(ifp, MESSAGE_UPDATE, 10 + 2);//occio +2
+    start_message(ifp, MESSAGE_UPDATE, 10);
     accumulate_byte(ifp, 0);
     accumulate_byte(ifp, 0);
     accumulate_byte(ifp, 0);
@@ -1596,8 +1615,7 @@ send_wildcard_retraction(struct interface *ifp)
     accumulate_short(ifp, 0xFFFF);
     accumulate_short(ifp, myseqno);
     accumulate_short(ifp, 0xFFFF);
-    accumulate_short(ifp, 56);//occio magic
-    end_message(ifp, MESSAGE_UPDATE, 10 + 2);//occio +2
+    end_message(ifp, MESSAGE_UPDATE, 10);
 
     ifp->have_buffered_id = 0;
 }
