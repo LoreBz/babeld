@@ -127,13 +127,14 @@ network_prefix(int ae, int plen, unsigned int omitted,
 static void
 parse_update_subtlv(struct interface *ifp,
                     const unsigned char *prefix, unsigned char plen,
-                    const unsigned char *from, int metric,
-                    const unsigned char *a, int alen,
+                    const unsigned char *from, const unsigned char *nh,
+                    int metric, const unsigned char *a, int alen,
                     unsigned char *channels, int *channels_len_return)
 {
     int type, len, i = 0;
     int channels_len;
     unsigned short contribute;
+    struct neighbour *neigh;
 
     /* This will be overwritten if there's a DIVERSITY_HOPS sub-TLV. */
     if(*channels_len_return < 1 || (ifp->flags & IF_FARAWAY)) {
@@ -172,13 +173,30 @@ parse_update_subtlv(struct interface *ifp,
             memcpy(channels, a + i + 2, MIN(len, *channels_len_return));
             channels_len = MIN(len, *channels_len_return);
         } else if (type == SUBTLV_CENTRALITY){
-          printf("SUBTLV_CENTRALITY RECEIVED\t");
           DO_NTOHS(contribute, a + i + 2);
-          printf("contribute in subtlv was: %i\n", contribute);
-          printf("Centrality Info<Prefix:%s - neigh:%s - contribute: %i>\n",
+          printf("SUBTLV_CENTRALITY RECEIVED: <Prefix:%s - NH:%s - neigh:%s - contribute: %i>\n",
                 format_prefix(prefix, plen),
+                format_address(nh),
                 format_address(from),
                 contribute);
+
+          //logic of onReceive(Centrality Info)
+          neigh = find_neighbour(from, ifp);
+          struct babel_route *route = find_route(prefix, plen,
+                                  NULL, 0,
+                                  neigh, nh);
+          if(route!=NULL) {
+            printf("Found route matching prefix (pref:%s)\t",
+                  format_prefix(route->src->prefix, route->src->plen));
+            printf("adding contribute to its contributors list!\n");
+            //if I am next_hop for this neigh for this prefix
+            printf("My neigh address:%s\n", format_address(neigh->address));
+            route->contributors = update_contributors(route->contributors,
+                                      neigh,contribute);
+          } else {
+            printf("Route not found :(\n");
+          }
+
         } else {
             debugf("Received unknown update sub-TLV %d.\n", type);
         }
@@ -551,7 +569,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     goto done;
             }
           //ohoh, qua si può smanettare un po', e' il caso di dare un occhiata
-            parse_update_subtlv(ifp, prefix, plen, from,
+            parse_update_subtlv(ifp, prefix, plen, from, nh,
                                 metric, message + 2 + parsed_len,
                                 len - parsed_len, channels, &channels_len);
             update_route(router_id, prefix, plen, zeroes, 0, seqno,
@@ -666,7 +684,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     goto done;
             }
 
-            parse_update_subtlv(ifp, prefix, plen, from,
+            parse_update_subtlv(ifp, prefix, plen, from, nh,
                                 metric, message + 2 + parsed_len,
                                 len - parsed_len, channels, &channels_len);
             update_route(router_id, prefix, plen, src_prefix, src_plen,
@@ -1151,8 +1169,8 @@ really_send_update(struct interface *ifp,
     unsigned short flags = 0;
     int channels_size;
     int contribute_size;
-    contribute=123;
-    printf("really_send_update: contribute=%i\n", contribute);
+    printf("really_send_update(prefix=%s): contribute=%i\n",
+    format_prefix(prefix, plen), contribute);
     if(diversity_kind != DIVERSITY_CHANNEL)
         channels_len = -1;
 
@@ -1323,7 +1341,6 @@ flushupdates(struct interface *ifp)
     unsigned char last_plen = 0xFF;
     unsigned char last_src_plen = 0xFF;
     int i;
-    struct contribute *contributors;
     unsigned short route_contribute = 0;
 
     if(ifp == NULL) {
@@ -1346,7 +1363,8 @@ flushupdates(struct interface *ifp)
 
         debugf("  (flushing %d buffered updates on %s (%d))\n",
                n, ifp->name, ifp->ifindex);
-        printf("flushing updates, wanna see if contributes are there\n");
+        printf("  (flushing %d buffered updates on %s (%d))\n",
+               n, ifp->name, ifp->ifindex);
         /* In order to send fewer update messages, we want to send updates
            with the same router-id together, with IPv6 going out before IPv4. */
 
@@ -1430,19 +1448,14 @@ flushupdates(struct interface *ifp)
                            MIN(route->channels_len, MAX_CHANNEL_HOPS - 1));
                     chlen = 1 + MIN(route->channels_len, MAX_CHANNEL_HOPS - 1);
                 }
-                /*here it is the case to compute the total contribute for the
-                given route
-                Here instead the real contribute for the buffered prefix should
-                be computed and inserted
-                unsigned short contr=compute_contr_for_prefix(b[i])
-                */
-                contributors = route->contributors;
-                route_contribute = total_contribute(contributors);
+
+                //aggregating contributes of n for this route
+                route_contribute = total_contribute(route->contributors);
 
                 really_send_update(ifp, route->src->id,
                                    route->src->prefix, route->src->plen,
                                    route->src->src_prefix, route->src->src_plen,
-                                   seqno, metric, route_contribute,
+                                   seqno, metric, 1 + route_contribute,
                                    channels, chlen);
                 update_source(route->src, seqno, metric);
                 last_prefix = route->src->prefix;
