@@ -8,6 +8,16 @@
 #include "interface.h"
 #include "neighbour.h"
 
+void printList(struct contribute *head) {
+   struct contribute *ptr = head;
+   printf("[ ");
+   while(ptr != NULL) {
+      printf("(%s,%d) ",ptr->neigh->ifp->name,ptr->contribute);
+      //printf("(%d) ",ptr->contribute);
+      ptr = ptr->next;
+   }
+   printf(" ]\n");
+}
 /*
 Aggregates contributes of all neighbour.
 NB: each route entry has a contributors list, i.e. for each known prefix
@@ -18,7 +28,7 @@ unsigned short total_contribute(struct contribute *head) {
 	struct contribute *ptr = head;
 	unsigned short total = 0;
 	while(ptr != NULL) {
-      total=total + ptr->contribute;
+      total = total + (ptr->contribute);
       ptr = ptr->next;
    }
    printf("CENTR; Total contribute: %i\n", total);
@@ -49,15 +59,4 @@ struct contribute *update_contributors(struct contribute *head,
    	head = link;
    }
    return head;
-}
-
-void printList(struct contribute *head) {
-   struct contribute *ptr = head;
-   printf("[ ");
-   while(ptr != NULL) {
-      printf("(%s,%d) ",ptr->neigh->ifp->name,ptr->contribute);
-      //printf("(%d) ",ptr->contribute);
-      ptr = ptr->next;
-   }
-   printf(" ]\n");
 }

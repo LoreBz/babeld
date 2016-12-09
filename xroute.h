@@ -26,12 +26,13 @@ struct xroute {
     unsigned char src_prefix[16];
     unsigned char src_plen;
     unsigned short metric;
+    struct contribute *contributors;
     unsigned int ifindex;
     int proto;
 };
 
 struct xroute_stream;
-
+struct xroute *find_xroute_entry(const unsigned char *prefix, unsigned char plen);
 struct xroute *find_xroute(const unsigned char *prefix, unsigned char plen,
                 const unsigned char *src_prefix, unsigned char src_plen);
 void flush_xroute(struct xroute *xroute);

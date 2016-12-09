@@ -191,7 +191,8 @@ parse_update_subtlv(struct interface *ifp,
             printf("Name of receiving interface %s, with addr%s\n",ifp->name, myAddr);
             int trough_me=0;
             if(strcmp(myAddr,format_address(mynh))==0) {
-              printf("myAddr=%s and nh=%s are equal!\n",myAddr,format_address(mynh));
+              printf("myAddr=%s and nh=%s are equal! PASS TROUGH ME!\n",
+              format_address(myAddr),format_address(mynh));
               trough_me=1;
             } else {
               printf("myAddr=%s, nh=%s are not equal\n",myAddr,format_address(mynh));
@@ -199,16 +200,21 @@ parse_update_subtlv(struct interface *ifp,
             }
             if (trough_me) {
               neigh = find_neighbour(from, ifp);
-              struct babel_route *route = find_installed_route(prefix, plen,
-                                      NULL, 0);
+              struct babel_route *route = find_route_entry(prefix, plen);
+              struct xroute *xroute = find_xroute_entry(prefix,plen);
+
               if(route!=NULL) {
                 printf("Found route matching prefix (pref:%s)\t",
                       format_prefix(route->src->prefix, route->src->plen));
                 printf("adding contribute to its contributors list!\n");
-                //if I am next_hop for this neigh for this prefix
-                printf("My neigh address:%s\n", format_address(neigh->address));
                 route->contributors = update_contributors(route->contributors,
                                           neigh,contribute);
+              } else if(xroute!=NULL){
+                printf("Found Xroute matching prefix (pref:%s)\t",
+                      format_prefix(xroute->prefix, xroute->plen));
+                      printf("adding contribute to its contributors list!\n");
+                      xroute->contributors = update_contributors(xroute->contributors,
+                                                neigh,contribute);
               } else {
                 printf("Route not found :(\n");
               }
@@ -504,7 +510,6 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             unsigned short interval, seqno, metric;
             int rc, parsed_len;
             printf("PARSING A MESSAGE_UPDATE: ");
-            //printf("%#08x\n", message);
             print_hex(message);
             if(len < 10) {
                 if(len < 2 || message[3] & 0x80)
@@ -1287,14 +1292,13 @@ really_send_update(struct interface *ifp,
         accumulate_bytes(ifp, channels, channels_len);
     }
 
-    //try to add sub-TLV for centrality
+    //adding sub-TLV for centrality
     accumulate_byte(ifp, SUBTLV_CENTRALITY);
     accumulate_byte(ifp, central_stlv_size);
+    //adding contribute
     accumulate_short(ifp, contribute);
-    //cacca
-    //printf("SAFE1\n");
+    //adding next-hop (routing NH)
     accumulate_bytes(ifp, nexthop, 16);
-    //printf("SAFE2\n");
 
     if(src_plen == 0)
         end_message(ifp, MESSAGE_UPDATE, 10 + (real_plen + 7) / 8 - omit +
@@ -1363,11 +1367,25 @@ flushupdates(struct interface *ifp)
     unsigned char last_plen = 0xFF;
     unsigned char last_src_plen = 0xFF;
     int i;
-    unsigned short route_contribute = 0;
+    unsigned short route_contribute = 0, xroute_contribute = 0;
     unsigned char nexthop[16];
 
     //memcpy(nexthop,ifp->ipv4,16);
     getIfAddr(ifp->name,nexthop);//initialize nexthop somehow
+
+    //eventualmente, in maniera più consistente col resto del codice, fare cosi
+    printf("NextHop after getIfAddr %s\n", nexthop);
+    char v4[INET_ADDRSTRLEN];
+    if (if_up(ifp) && ifp->ipv4)
+        inet_ntop(AF_INET, ifp->ipv4, v4, INET_ADDRSTRLEN);
+    else
+        v4[0] = '\0';
+    printf("Trying to print dinamically an interface address %s - %s - %s\n",
+          ifp->ll ? format_address(*ifp->ll) : "",
+          ifp->ipv4 ? v4 : "",
+          format_address(ifp->ipv4));
+    //fine dell'eventualmente
+    //inet_ntop(AF_INET, ifp->ipv4, nexthop, INET_ADDRSTRLEN);
 
     if(ifp == NULL) {
         struct interface *ifp_aux;
@@ -1423,17 +1441,17 @@ flushupdates(struct interface *ifp)
                                          b[i].src_prefix, b[i].src_plen);
 
             if(xroute && (!route || xroute->metric <= kernel_metric)) {
-                /*added 1 after metric as 1contribute associated to routes
-                 exported by this node.
-                 */
-                 printf("%ld.%06ld\tSending UpdateC for xroute<Prefix:%s - NH:* - contribute: %i>\n",
-                 now.tv_sec, now.tv_usec,
-                 format_prefix(xroute->prefix, xroute->plen), 1);
 
-                really_send_update(ifp, myid,
+                 printf("%ld.%06ld\tSending UpdateC for xroute<Prefix:%s - NH:*%s* - contribute: %i>\n",
+                 now.tv_sec, now.tv_usec,
+                 format_prefix(xroute->prefix, xroute->plen),
+                                format_address(nexthop), 1 + xroute_contribute);
+                 //aggregating contributes for this route
+                 xroute_contribute = total_contribute(xroute->contributors);
+                 really_send_update(ifp, myid,
                                    xroute->prefix, xroute->plen,
                                    xroute->src_prefix, xroute->src_plen,
-                                   myseqno, xroute->metric, 1, nexthop,
+                                   myseqno, xroute->metric, 1 + xroute_contribute, nexthop,
                                    NULL, 0);
                 last_prefix = xroute->prefix;
                 last_plen = xroute->plen;

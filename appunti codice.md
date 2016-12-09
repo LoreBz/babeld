@@ -1,5 +1,34 @@
-# COMMENTI SUL CODICE BABEL
+ # COMMENTI SUL CODICE BABEL
 
+ ```c
+
+ const char * format_address(const unsigned char *address)
+ int parse_address(const char *address, unsigned char *addr_r, int *af_r)
+
+ ```
+
+ ```c
+ up = if_up(ifp);
+ if(up && ifp->ipv4)
+     inet_ntop(AF_INET, ifp->ipv4, v4, INET_ADDRSTRLEN);
+ else
+     v4[0] = '\0';
+ if(up)
+     rc = snprintf(buf, 512,
+                   "%s interface %s up true%s%s%s%s\n",
+                   local_kind(kind), ifp->name,
+                   ifp->ll ? " ipv6 " : "",
+                   ifp->ll ? format_address(*ifp->ll) : "",
+                   v4[0] ? " ipv4 " : "", v4);
+ ```
+
+sono usate rispettvaimente per
+- prendere un indirizzo binario e ritornarlo in formato presentabile (si usa inet_ntop)
+- prendere un indirizzo presentabile e ritornarlo in binario (si usa inet_pton)
+
+si veda http://beej.us/guide/bgnet/output/html/multipage/inet_ntopman.html
+
+<!--
 ## scoperte recenti
 ```c
 /* Parse a network prefix, encoded in the somewhat baroque compressed
@@ -287,4 +316,4 @@ struct source {
     unsigned short route_count;
     time_t time;
 };
-```
+``` -->

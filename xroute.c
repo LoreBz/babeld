@@ -57,6 +57,18 @@ find_xroute(const unsigned char *prefix, unsigned char plen,
     return NULL;
 }
 
+struct xroute *
+find_xroute_entry(const unsigned char *prefix, unsigned char plen)
+{
+    int i;
+    for(i = 0; i < numxroutes; i++) {
+        if(xroutes[i].plen == plen &&
+           memcmp(xroutes[i].prefix, prefix, 16) == 0)
+            return &xroutes[i];
+    }
+    return NULL;
+}
+
 void
 flush_xroute(struct xroute *xroute)
 {
