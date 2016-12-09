@@ -520,11 +520,12 @@ prefix_cmp(const unsigned char *p1, unsigned char plen1,
         return PST_EQUALS;
 }
 
-int getIfAddr(char *ifname, char* retval) {
+int getIfAddr(unsigned char *ifname, unsigned char* retval) {
 
     struct ifaddrs *ifaddr, *ifa;
     int family, s;
     char host[NI_MAXHOST];
+    int rc=EXIT_FAILURE;
 
     if (getifaddrs(&ifaddr) == -1) {
         perror("getifaddrs");
@@ -540,12 +541,13 @@ int getIfAddr(char *ifname, char* retval) {
                 printf("getnameinfo() failed: %s\n", gai_strerror(s));
                 return EXIT_FAILURE;
             }
-            printf("\tInterface : <%s>\n",ifa->ifa_name );
-            printf("\t  Address : <%s>\n", host);
+            //printf("\tInterface : <%s>\n",ifa->ifa_name );
+            //printf("\t  Address : <%s>\n", host);
             strcpy(retval, host);
+            rc=EXIT_SUCCESS;
             break;
         }
     }
     freeifaddrs(ifaddr);
-    return EXIT_SUCCESS;
+    return rc;
 }
