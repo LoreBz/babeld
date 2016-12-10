@@ -564,3 +564,23 @@ check_interfaces(void)
     if(ifindex_changed)
         renumber_filters();
 }
+
+int getIfAddr(struct interface *ifp, int af, unsigned char* retval) {
+
+  if (af==AF_INET) {
+    char v4[INET_ADDRSTRLEN];
+    if (if_up(ifp) && ifp->ipv4)
+        inet_ntop(AF_INET, ifp->ipv4, v4, INET_ADDRSTRLEN);
+    else
+        v4[0] = '\0';
+    parse_address(v4, retval, NULL);
+    return EXIT_SUCCESS;
+  }
+
+  if (af==AF_INET6) {
+    if(if_up(ifp) && ifp->ll)
+      parse_address(format_address(*ifp->ll), retval, NULL);
+    return EXIT_SUCCESS;
+  }
+  return EXIT_FAILURE;
+}

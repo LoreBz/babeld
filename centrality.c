@@ -2,11 +2,12 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <net/if.h>
-
-#include "centrality.h"
-#include "interface.h"
+#include "babeld.h"
+#include "util.h"
 #include "neighbour.h"
+#include "interface.h"
+#include "centrality.h"
+
 
 void printList(struct contribute *head) {
    struct contribute *ptr = head;
@@ -42,7 +43,8 @@ struct contribute *update_contributors(struct contribute *head,
 	while(ptr != NULL) {
       if (ptr->neigh == neigh) {
       	ptr->contribute = contribute;
-      	printf("CENTR; Item for neigh on %s updated with value %i\n", neigh->ifp->name, contribute);
+      	printf("CENTR; Item for neigh:%s updated with value %i\n",
+        format_address(neigh->address), contribute);
         //printf("CENTR; Updating contribute\n");
         found = 1;
       	break;
@@ -50,7 +52,8 @@ struct contribute *update_contributors(struct contribute *head,
       ptr = ptr->next;
    }
    if (!found) {
-   	printf("CENTR; Adding new element <%s,%i>\n", neigh->ifp->name, contribute);
+   	printf("CENTR; Adding new element <%s,%i>\n",
+    format_address(neigh->address), contribute);
     //printf("CENTR; Adding element\n");
     struct contribute *link = (struct contribute*) malloc(sizeof(struct contribute));
    	link->neigh = neigh;

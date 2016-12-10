@@ -135,7 +135,7 @@ parse_update_subtlv(struct interface *ifp,
     int channels_len;
     unsigned short contribute;
     struct neighbour *neigh;
-    const unsigned char mynh[16];
+    unsigned char rhop[16];//routing-hop subtlv field
 
     /* This will be overwritten if there's a DIVERSITY_HOPS sub-TLV. */
     if(*channels_len_return < 1 || (ifp->flags & IF_FARAWAY)) {
@@ -177,27 +177,27 @@ parse_update_subtlv(struct interface *ifp,
         } else
         if (type == SUBTLV_CENTRALITY){
           DO_NTOHS(contribute, a + i + 2);
-          memcpy(mynh,a+i+4,16);
-          printf("%ld.%06ld\tSUBTLV_CENTRALITY RECEIVED: <Prefix:%s - NH:%s - neigh:%s - contribute:%i>\n",
-                  now.tv_sec,now.tv_usec,
-                  format_prefix(prefix, plen),
-                  format_address(mynh),
-                  format_address(from),
-                  contribute);
-            //logic of onReceive(Centrality Info)
-            //if(I am NH do...otherwise do nothing)
-            unsigned char myAddr[80];
-            int rc=getIfAddr(ifp->name,myAddr);
-            printf("Name of receiving interface %s, with addr%s\n",ifp->name, myAddr);
+          memcpy(rhop, a+i+4, 16);
+          printf("%ld.%06ld\tSUBTLV_CENTRALITY:<Prefix:%s;RH:%s;neigh:%s;contribute:%i>\n",
+                  now.tv_sec,now.tv_usec, format_prefix(prefix, plen),
+                  format_address(rhop), format_address(from), contribute);
+            /*logic of onReceive(Centrality Info)
+            if I am rhop update contributors, otherwise ignore SUBTLV*/
+            unsigned char myAddr[16];
+            getIfAddr(ifp, AF_INET, myAddr);
+            printf("Receiving interface %s:%s\n",ifp->name, format_address(myAddr));
+
             int trough_me=0;
-            if(strcmp(myAddr,format_address(mynh))==0) {
-              printf("myAddr=%s and nh=%s are equal! PASS TROUGH ME!\n",
-              format_address(myAddr),format_address(mynh));
+            if(strcmp(format_address(myAddr),format_address(rhop))==0) {
+              printf("myAddr=%s and rh=%s are equal! PASS TROUGH ME!\n",
+              format_address(myAddr),format_address(rhop));
               trough_me=1;
             } else {
-              printf("myAddr=%s, nh=%s are not equal\n",myAddr,format_address(mynh));
+              printf("myAddr=%s and rh=%s are not equal\n",
+              format_address(myAddr),format_address(rhop));
               trough_me=0;
             }
+
             if (trough_me) {
               neigh = find_neighbour(from, ifp);
               struct babel_route *route = find_route_entry(prefix, plen);
@@ -210,12 +210,13 @@ parse_update_subtlv(struct interface *ifp,
                 route->contributors = update_contributors(route->contributors,
                                           neigh,contribute);
               } else if(xroute!=NULL){
-                printf("Found Xroute matching prefix (pref:%s)\t",
+                printf("Found xroute matching prefix (pref:%s)\t",
                       format_prefix(xroute->prefix, xroute->plen));
                       printf("adding contribute to its contributors list!\n");
                       xroute->contributors = update_contributors(xroute->contributors,
                                                 neigh,contribute);
               } else {
+                //it should never be the case
                 printf("Route not found :(\n");
               }
             } else {
@@ -345,7 +346,6 @@ parse_packet(const unsigned char *from, struct interface *ifp,
     if(ifp->flags & IF_TIMESTAMPS) {
         /* We want to track exactly when we received this packet. */
         gettime(&now);
-        printf("New Packet at time %ld.%06ld\n", now.tv_sec, now.tv_usec);
     }
 
     if(!linklocal(from)) {
@@ -473,10 +473,8 @@ parse_packet(const unsigned char *from, struct interface *ifp,
             }
             memcpy(router_id, message + 4, 8);
             have_router_id = 1;
-            /*debugf("Received router-id %s from %s on %s.\n",
-                   format_eui64(router_id), format_address(from), ifp->name);*/
-            printf("Received router-id %s from %s on %s.\n",
-                    format_eui64(router_id), format_address(from), ifp->name);
+            debugf("Received router-id %s from %s on %s.\n",
+                   format_eui64(router_id), format_address(from), ifp->name);
         } else if(type == MESSAGE_NH) {
             unsigned char nh[16];
             int rc;
@@ -1181,7 +1179,7 @@ really_send_update(struct interface *ifp,
                    const unsigned char *prefix, unsigned char plen,
                    const unsigned char *src_prefix, unsigned char src_plen,
                    unsigned short seqno, unsigned short metric,
-                   unsigned short contribute, const unsigned char *nexthop,
+                   unsigned short contribute, const unsigned char *rhop,
                    unsigned char *channels, int channels_len)
 {
     int add_metric, v4, real_plen, omit = 0;
@@ -1260,18 +1258,21 @@ really_send_update(struct interface *ifp,
         ifp->have_buffered_id = 1;
     }
 
-    /*for the moment centrality subtlv should always be added to updates
-    and always carry a contribute (ushort) of size 2*/
-  printf("really_send_update: we have a nexthop=%s\n", format_address(nexthop));
-      central_stlv_size = 2+2+16;
-      //central_stlv_size = 2+2;
+  printf("really_send_update: we have a rhop=%s\n", format_address(rhop));
+
+  /*for the moment centrality subtlv carries:
+  - 2 bytes of subtlv header
+  - 2 bytes of contribute (unsigned short)
+  - 16 bytes of rhop (unsigned char[16])*/
+      central_stlv_size = 2 + 2 + 16;
+
     if(src_plen == 0)
         start_message(ifp, MESSAGE_UPDATE, 10 + (real_plen + 7) / 8 - omit +
-                      channels_size + central_stlv_size);//occio + central_stlv_size
+                      channels_size + central_stlv_size);
     else
         start_message(ifp, MESSAGE_UPDATE_SRC_SPECIFIC,
                       10 + (real_plen + 7) / 8 - omit +
-                      (real_src_plen + 7) / 8 + channels_size + central_stlv_size);//occio + central_stlv_size
+                      (real_src_plen + 7) / 8 + channels_size + central_stlv_size);
     accumulate_byte(ifp, v4 ? 1 : 2);
     if(src_plen != 0)
         accumulate_byte(ifp, real_src_plen);
@@ -1297,16 +1298,16 @@ really_send_update(struct interface *ifp,
     accumulate_byte(ifp, central_stlv_size);
     //adding contribute
     accumulate_short(ifp, contribute);
-    //adding next-hop (routing NH)
-    accumulate_bytes(ifp, nexthop, 16);
+    //adding routing-hop
+    accumulate_bytes(ifp, rhop, 16);
 
     if(src_plen == 0)
         end_message(ifp, MESSAGE_UPDATE, 10 + (real_plen + 7) / 8 - omit +
-                    channels_size + central_stlv_size);//occio + central_stlv_size
+                    channels_size + central_stlv_size);
     else
         end_message(ifp, MESSAGE_UPDATE_SRC_SPECIFIC,
                     10 + (real_plen + 7) / 8 - omit +
-                    (real_src_plen + 7) / 8 + channels_size + central_stlv_size);//occio + central_stlv_size
+                    (real_src_plen + 7) / 8 + channels_size + central_stlv_size);
 
     if(flags & 0x80) {
         memcpy(ifp->buffered_prefix, prefix, 16);
@@ -1368,24 +1369,11 @@ flushupdates(struct interface *ifp)
     unsigned char last_src_plen = 0xFF;
     int i;
     unsigned short route_contribute = 0, xroute_contribute = 0;
-    unsigned char nexthop[16];
-
-    //memcpy(nexthop,ifp->ipv4,16);
-    getIfAddr(ifp->name,nexthop);//initialize nexthop somehow
-
-    //eventualmente, in maniera più consistente col resto del codice, fare cosi
-    printf("NextHop after getIfAddr %s\n", nexthop);
-    char v4[INET_ADDRSTRLEN];
-    if (if_up(ifp) && ifp->ipv4)
-        inet_ntop(AF_INET, ifp->ipv4, v4, INET_ADDRSTRLEN);
-    else
-        v4[0] = '\0';
-    printf("Trying to print dinamically an interface address %s - %s - %s\n",
-          ifp->ll ? format_address(*ifp->ll) : "",
-          ifp->ipv4 ? v4 : "",
-          format_address(ifp->ipv4));
-    //fine dell'eventualmente
-    //inet_ntop(AF_INET, ifp->ipv4, nexthop, INET_ADDRSTRLEN);
+    /*
+    "routing hop" or "second_hop"; see
+    http://www.mail-archive.com/babel-users@lists.alioth.debian.org/msg02602.html
+    */
+    unsigned char rhop[16];
 
     if(ifp == NULL) {
         struct interface *ifp_aux;
@@ -1441,18 +1429,20 @@ flushupdates(struct interface *ifp)
                                          b[i].src_prefix, b[i].src_plen);
 
             if(xroute && (!route || xroute->metric <= kernel_metric)) {
+                 //if route exported then ifp is rhop
+                 getIfAddr(ifp, AF_INET, rhop);
+                 printf("%ld.%06ld\tUpdateC, xroute<Prefix:%s;NH:%s*;contribute:%i>\n",
+                        now.tv_sec, now.tv_usec,
+                        format_prefix(xroute->prefix, xroute->plen),
+                        format_address(rhop), 1 + xroute_contribute);
 
-                 printf("%ld.%06ld\tSending UpdateC for xroute<Prefix:%s - NH:*%s* - contribute: %i>\n",
-                 now.tv_sec, now.tv_usec,
-                 format_prefix(xroute->prefix, xroute->plen),
-                                format_address(nexthop), 1 + xroute_contribute);
                  //aggregating contributes for this route
                  xroute_contribute = total_contribute(xroute->contributors);
                  really_send_update(ifp, myid,
-                                   xroute->prefix, xroute->plen,
-                                   xroute->src_prefix, xroute->src_plen,
-                                   myseqno, xroute->metric, 1 + xroute_contribute, nexthop,
-                                   NULL, 0);
+                                 xroute->prefix, xroute->plen,
+                                 xroute->src_prefix, xroute->src_plen,
+                                 myseqno, xroute->metric, 1 + xroute_contribute,
+                                 rhop, NULL, 0);
                 last_prefix = xroute->prefix;
                 last_plen = xroute->plen;
                 last_src_prefix = xroute->src_prefix;
@@ -1500,11 +1490,10 @@ flushupdates(struct interface *ifp)
                 //aggregating contributes of n for this route
                 route_contribute = total_contribute(route->contributors);
 
-                printf("%ld.%06ld\tSending UpdateC for learned route<Prefix:%s - NH:%s - contribute: %d>\n",
+                printf("%ld.%06ld\tUpdateC, route<Prefix:%s;NH:%s;contribute:%i>\n",
                 now.tv_sec,now.tv_usec,
                 format_prefix(route->src->prefix, route->src->plen),
-                format_address(route->nexthop), (1 + total_contribute));
-
+                format_address(route->nexthop), (1 + route_contribute));
 
                 really_send_update(ifp, route->src->id,
                                    route->src->prefix, route->src->plen,
@@ -1519,10 +1508,12 @@ flushupdates(struct interface *ifp)
             } else {
             /* There's no route for this prefix.  This can happen shortly
                after an xroute has been retracted, so send a retraction. */
-               //for no route we put 0 as contribute
+                /* In retraction we put 0 contribute and this interface addr
+                as rhop */
+                getIfAddr(ifp, AF_INET, rhop);
                 really_send_update(ifp, myid, b[i].prefix, b[i].plen,
                                    b[i].src_prefix, b[i].src_plen,
-                                   myseqno, INFINITY, 0, nexthop, NULL, -1);
+                                   myseqno, INFINITY, 0, rhop, NULL, -1);
             }
         }
         schedule_flush_now(ifp);

@@ -1,5 +1,5 @@
 # TO DO
 
-#### provare questo workaround, pescare il next-hop a mano dalla route e includerlo nel sub-TLV. giusto per vedere se intanto cosi il calcolo funziona
+## pulire il codice facendo una getIfAddr che ti pesca l'indirizzo come la family che vuoi tu e ti restituisce l'indirizzo in binario (cioè per stamparlo va messo in format_address) e utilizzarlo consistemente in giro
 
-- mi sembra di capire che ora riesco a farmi arrivare il nexthop, solo che dopo averlo pescato faccio qualche casino perchè crasha il nodo che riesce a pescarlo: risolvere capendo quando crasha mettendo un po' di printf in giro
+- richiede rifare la getIfAddr intelligentemente, rimuovere i file .h inutili della vecchia getifaddr ecc

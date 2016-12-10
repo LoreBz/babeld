@@ -35,11 +35,12 @@ THE SOFTWARE.
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <netdb.h>
-#include <ifaddrs.h>
+//#include <netdb.h>
+//#include <ifaddrs.h>
 
 #include "babeld.h"
 #include "util.h"
+#include "interface.h"
 
 int
 roughly(int value)
@@ -518,36 +519,4 @@ prefix_cmp(const unsigned char *p1, unsigned char plen1,
         return PST_MORE_SPECIFIC;
     else
         return PST_EQUALS;
-}
-
-int getIfAddr(unsigned char *ifname, unsigned char* retval) {
-
-    struct ifaddrs *ifaddr, *ifa;
-    int family, s;
-    char host[NI_MAXHOST];
-    int rc=EXIT_FAILURE;
-
-    if (getifaddrs(&ifaddr) == -1) {
-        perror("getifaddrs");
-        return EXIT_FAILURE;
-    }
-
-    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr == NULL)
-            continue;
-        s=getnameinfo(ifa->ifa_addr,sizeof(struct sockaddr_in),host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-        if((strcmp(ifa->ifa_name,ifname)==0)&&(ifa->ifa_addr->sa_family==AF_INET)) {
-            if (s != 0) {
-                printf("getnameinfo() failed: %s\n", gai_strerror(s));
-                return EXIT_FAILURE;
-            }
-            //printf("\tInterface : <%s>\n",ifa->ifa_name );
-            //printf("\t  Address : <%s>\n", host);
-            strcpy(retval, host);
-            rc=EXIT_SUCCESS;
-            break;
-        }
-    }
-    freeifaddrs(ifaddr);
-    return rc;
 }
