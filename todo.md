@@ -1,5 +1,9 @@
 # TO DO
 
-## pulire il codice facendo una getIfAddr che ti pesca l'indirizzo come la family che vuoi tu e ti restituisce l'indirizzo in binario (cioè per stamparlo va messo in format_address) e utilizzarlo consistemente in giro
+- supporto per IPv6...
 
-- richiede rifare la getIfAddr intelligentemente, rimuovere i file .h inutili della vecchia getifaddr ecc
+### NePa
+- come sapere tutte le interfacce di un host mininet e lanciare comando bkgrnd su tutte?
+  - pensavo: in background lancio uno script python invece che il comanda babel. In particolare:
+  - lo script prima recupera i nomi delle interfacce
+  - poi con os.system lancia davvero babeld con tando di interfacce appena recuperate

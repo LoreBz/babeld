@@ -54,6 +54,7 @@ THE SOFTWARE.
 #include "local.h"
 #include "rule.h"
 #include "version.h"
+#include "centrality.h"
 
 struct timeval now;
 
@@ -791,6 +792,8 @@ main(int argc, char **argv)
         if(UNLIKELY(debug || dumping)) {
             dump_tables(stdout);
             dumping = 0;
+            //here maybe we could dump centrality...
+            printf("Centrality dump %hu\n", node_centrality());
         }
     }
 

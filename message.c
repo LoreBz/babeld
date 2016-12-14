@@ -1190,7 +1190,7 @@ really_send_update(struct interface *ifp,
     int channels_size;
     int central_stlv_size;
     printf("really_send_update(prefix=%s): contribute=%i\n",
-    format_prefix(prefix, plen), contribute);
+        format_prefix(prefix, plen), contribute);
     if(diversity_kind != DIVERSITY_CHANNEL)
         channels_len = -1;
 
@@ -1431,7 +1431,8 @@ flushupdates(struct interface *ifp)
             if(xroute && (!route || xroute->metric <= kernel_metric)) {
                  //if route exported then ifp is rhop
                  getIfAddr(ifp, AF_INET, rhop);
-                 printf("%ld.%06ld\tUpdateC, xroute<Prefix:%s;NH:%s*;contribute:%i>\n",
+                 printf("%ld.%06ld\tUpdateC, xroute<Prefix:%s;NH:%s*;\
+                        contribute:%i>\n",
                         now.tv_sec, now.tv_usec,
                         format_prefix(xroute->prefix, xroute->plen),
                         format_address(rhop), 1 + xroute_contribute);
