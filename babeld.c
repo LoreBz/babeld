@@ -74,6 +74,8 @@ int skip_kernel_setup = 0;
 const char *logfile = NULL,
     *pidfile = "/var/run/babeld.pid",
     *state_file = "/var/lib/babel-state";
+const char *cent_file = "dump_centr.csv";
+FILE *logcentfd;
 
 unsigned char *receive_buffer = NULL;
 int receive_buffer_size = 0;
@@ -99,7 +101,7 @@ static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0;
 static int accept_local_connections(void);
 static void init_signals(void);
 static void dump_tables(FILE *out);
-static void dump_centrality(unsigned short c);
+static void dump_centrality(FILE *out, unsigned short c);
 
 static int
 kernel_route_notify(struct kernel_route *route, void *closure)
@@ -174,7 +176,7 @@ main(int argc, char **argv)
 
     while(1) {
         opt = getopt(argc, argv,
-                     "m:p:h:H:i:k:A:sruS:d:g:G:lwz:M:t:T:c:C:DL:I:V");
+                     "m:p:h:H:i:k:A:sruS:d:g:G:lwz:M:t:T:c:C:DL:I:Ve:");
         if(opt < 0)
             break;
 
@@ -317,6 +319,9 @@ main(int argc, char **argv)
             break;
         case 'I':
             pidfile = optarg;
+            break;
+        case 'e':
+            cent_file = optarg;
             break;
         case 'V':
             fprintf(stderr, "%s\n", BABELD_VERSION);
@@ -520,6 +525,15 @@ main(int argc, char **argv)
         close(fd);
         fd = -1;
     }
+
+    //open file to dump centrality
+    //char hostname[50];
+    //gethostname(hostname, 50);
+    //strcpy(cent_file, hostname);
+    //strcat(cent_file, "_centr_dump.csv");
+
+    logcentfd = fopen(cent_file, "a");
+    //if needed, write a log header now
 
     protocol_socket = babel_socket(protocol_port);
     if(protocol_socket < 0) {
@@ -795,7 +809,7 @@ main(int argc, char **argv)
             dumping = 0;
             //here maybe we could dump centrality...
             //printf("Centrality dump %hu\n", node_centrality());
-            dump_centrality(node_centrality());
+            dump_centrality(logcentfd, node_centrality());
         }
     }
 
@@ -1110,16 +1124,12 @@ dump_xroute(FILE *out, struct xroute *xroute)
 }
 
 static void
-dump_centrality(unsigned short c) {
-  FILE *lfd;
-  char cent_file[80];
-  strcpy(cent_file, format_eui64(myid));
-  strcat(cent_file, "_centr_dump.csv");
+dump_centrality(FILE *out, unsigned short c) {
 
-  lfd = fopen(cent_file, "a");
+  printf("%ld.%06ld DUMP CENTRALITY=%hu\n",now.tv_sec,now.tv_usec,c);
+  fprintf(out, "%ld.%06ld,%hu\n",now.tv_sec,now.tv_usec,c);
+  fflush(out);
 
-  fprintf(lfd, "%ld.%06ld,%hu\n",now.tv_sec,now.tv_usec,c);
-  fflush(lfd);
 }
 
 static void
