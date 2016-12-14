@@ -99,6 +99,7 @@ static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0;
 static int accept_local_connections(void);
 static void init_signals(void);
 static void dump_tables(FILE *out);
+static void dump_centrality(unsigned short c);
 
 static int
 kernel_route_notify(struct kernel_route *route, void *closure)
@@ -793,7 +794,8 @@ main(int argc, char **argv)
             dump_tables(stdout);
             dumping = 0;
             //here maybe we could dump centrality...
-            printf("Centrality dump %hu\n", node_centrality());
+            //printf("Centrality dump %hu\n", node_centrality());
+            dump_centrality(node_centrality());
         }
     }
 
@@ -1105,6 +1107,19 @@ dump_xroute(FILE *out, struct xroute *xroute)
             xroute->src_plen > 0 ?
             format_prefix(xroute->src_prefix, xroute->src_plen) : "",
             xroute->metric);
+}
+
+static void
+dump_centrality(unsigned short c) {
+  FILE *lfd;
+  char cent_file[80];
+  strcpy(cent_file, format_eui64(myid));
+  strcat(cent_file, "_centr_dump.csv");
+
+  lfd = fopen(cent_file, "a");
+
+  fprintf(lfd, "%ld.%06ld,%hu\n",now.tv_sec,now.tv_usec,c);
+  fflush(lfd);
 }
 
 static void
