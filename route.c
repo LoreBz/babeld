@@ -190,10 +190,12 @@ struct babel_route *find_route_entry(const unsigned char *prefix,
     while(1) {
         rt = route_stream_next(stream);
         if(rt == NULL) break;
-        //printf("\tNow comparing %s\n",
-        //format_prefix(rt->src->prefix,rt->src->plen));
-        if(prefix_cmp(rt->src->prefix,
-            rt->src->plen, prefix, plen) == PST_MORE_SPECIFIC) {
+        printf("\tNow comparing %s\n",
+        format_prefix(rt->src->prefix, rt->src->plen));
+        if(
+          (prefix_cmp(rt->src->prefix, rt->src->plen, prefix, plen) == PST_MORE_SPECIFIC)
+          || (prefix_cmp(rt->src->prefix, rt->src->plen, prefix, plen) == PST_EQUALS)
+              ) {
             return rt;
         }
     }

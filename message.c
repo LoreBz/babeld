@@ -178,14 +178,16 @@ parse_update_subtlv(struct interface *ifp,
         if (type == SUBTLV_CENTRALITY){
           DO_NTOHS(contribute, a + i + 2);
           memcpy(rhop, a+i+4, 16);
-          printf("%ld.%06ld\tSUBTLV_CENTRALITY:<Prefix:%s;RH:%s;neigh:%s;contribute:%i>\n",
+          printf("%ld.%06ld\tSUBTLV_CENTRALITY:<Prefix:%s;RH:%s;neigh:%s;"
+                  "contribute:%i>\n",
                   now.tv_sec,now.tv_usec, format_prefix(prefix, plen),
                   format_address(rhop), format_address(from), contribute);
             /*logic of onReceive(Centrality Info)
             if I am rhop update contributors, otherwise ignore SUBTLV*/
             unsigned char myAddr[16];
             getIfAddr(ifp, AF_INET, myAddr);
-            printf("Receiving interface %s:%s\n",ifp->name, format_address(myAddr));
+            printf("Receiving interface %s:%s\n",ifp->name,
+                    format_address(myAddr));
 
             int trough_me=0;
             if(strcmp(format_address(myAddr),format_address(rhop))==0) {
@@ -216,11 +218,13 @@ parse_update_subtlv(struct interface *ifp,
                       xroute->contributors = update_contributors(xroute->contributors,
                                                 neigh,contribute);
               } else {
-                //it should never be the case
+                //only if receiving first announcments for present route
                 printf("Route not found :(\n");
               }
             } else {
               printf("Ignoring Centrality info, not trough me\n");
+              //e invece qui possiamo fare garbage collection contributi
+              //che non passano piu da noi
             }
 
         } else {
@@ -1431,8 +1435,8 @@ flushupdates(struct interface *ifp)
             if(xroute && (!route || xroute->metric <= kernel_metric)) {
                  //if route exported then ifp is rhop
                  getIfAddr(ifp, AF_INET, rhop);
-                 printf("%ld.%06ld\tUpdateC, xroute<Prefix:%s;NH:%s*;\
-                        contribute:%i>\n",
+                 printf("%ld.%06ld\tUpdateC, xroute<Prefix:%s;NH:%s*;"
+                        "contribute:%i>\n",
                         now.tv_sec, now.tv_usec,
                         format_prefix(xroute->prefix, xroute->plen),
                         format_address(rhop), 1 + xroute_contribute);
@@ -1494,7 +1498,7 @@ flushupdates(struct interface *ifp)
                 printf("%ld.%06ld\tUpdateC, route<Prefix:%s;NH:%s;contribute:%i>\n",
                 now.tv_sec,now.tv_usec,
                 format_prefix(route->src->prefix, route->src->plen),
-                format_address(route->nexthop), (1 + route_contribute));
+                format_address(route->nexthop), 1 + route_contribute);
 
                 really_send_update(ifp, route->src->id,
                                    route->src->prefix, route->src->plen,
