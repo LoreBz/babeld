@@ -75,7 +75,9 @@ const char *logfile = NULL,
     *pidfile = "/var/run/babeld.pid",
     *state_file = "/var/lib/babel-state";
 const char *cent_file = "dump_centr.csv";
+const char *topo_filename = "topology.json";
 FILE *logcentfd;
+FILE *topofile;
 
 unsigned char *receive_buffer = NULL;
 int receive_buffer_size = 0;
@@ -102,6 +104,7 @@ static int accept_local_connections(void);
 static void init_signals(void);
 static void dump_tables(FILE *out);
 static void dump_centrality(FILE *out, unsigned short c);
+static void dump_topology();
 
 static int
 kernel_route_notify(struct kernel_route *route, void *closure)
@@ -176,7 +179,7 @@ main(int argc, char **argv)
 
     while(1) {
         opt = getopt(argc, argv,
-                     "m:p:h:H:i:k:A:sruS:d:g:G:lwz:M:t:T:c:C:DL:I:Ve:");
+                     "m:p:h:H:i:k:A:sruS:d:g:G:lwz:M:t:T:c:C:DL:I:Ve:n:");
         if(opt < 0)
             break;
 
@@ -322,6 +325,9 @@ main(int argc, char **argv)
             break;
         case 'e':
             cent_file = optarg;
+            break;
+        case 'n':
+            topo_filename = optarg;
             break;
         case 'V':
             fprintf(stderr, "%s\n", BABELD_VERSION);
@@ -807,9 +813,8 @@ main(int argc, char **argv)
         if(UNLIKELY(debug || dumping)) {
             dump_tables(stdout);
             dumping = 0;
-            //here maybe we could dump centrality...
-            //printf("Centrality dump %hu\n", node_centrality());
             dump_centrality(logcentfd, node_centrality());
+            dump_topology();
         }
     }
 
@@ -1129,6 +1134,76 @@ dump_centrality(FILE *out, unsigned short c) {
   printf("%ld.%06ld DUMP CENTRALITY=%hu\n",now.tv_sec,now.tv_usec,c);
   fprintf(out, "%ld.%06ld,%hu\n",now.tv_sec,now.tv_usec,c);
   fflush(out);
+
+}
+
+static void
+dump_topology() {
+  //FOPEN Creates an empty file for writing. If a file with the same name
+  //already exists, its content is erased and the file
+  //is considered as a new empty file.
+  topofile = fopen(topo_filename, "w");
+  printf("%ld.%06ld DUMP ROUTES TO TOPOLOGY FILE\n",now.tv_sec,now.tv_usec);
+
+  //header
+  fprintf(topofile, "{\n"
+    "\t\"type\": \"NetworkRoutes\",\n"
+    "\t\"protocol\": \"babel2\",\n"
+    "\t\"version\": \"1.8.0\",\n"
+    "\t\"metric\": \"ff_dat_metric\",\n"
+    "\t\"router_id\": \"%s\",\n"
+    "\t\"topology_id\": \"%ld.%06ld\"\n"
+    "\t\"routes\": [\n",
+    format_eui64(myid),
+    now.tv_sec,now.tv_usec);
+
+  struct xroute_stream *xroutes;
+  struct route_stream *routes;
+
+  xroutes = xroute_stream();
+  if(xroutes) {
+      while(1) {
+          struct xroute *xrt = xroute_stream_next(xroutes);
+          if(xrt == NULL) break;
+          fprintf(topofile, "\t\t{\n"
+            "\t\t\t\"destination\": \"%s\",\n"
+            "\t\t\t\"next\": \"%s\",\n"
+            "\t\t\t\"device\": \"%s\",\n"
+            "\t\t\t\"cost\": \"%i\",\n"
+            "\t\t\t\"source\": \"%s\"\n"
+            "\t\t},\n",
+            format_prefix(xrt->prefix, xrt->plen),
+            "Xroute_next","Xroute_device",xrt->metric,
+            format_prefix(xrt->src_prefix, xrt->src_plen));
+      }
+      xroute_stream_done(xroutes);
+  }
+
+  routes = route_stream(ROUTE_INSTALLED);
+  if(routes) {
+      while(1) {
+          struct babel_route *rt = route_stream_next(routes);
+          if(rt == NULL) break;
+          fprintf(topofile, "\t\t{\n"
+          "\t\t\t\"destination\": \"%s\",\n"
+          "\t\t\t\"next\": \"%s\",\n"
+          "\t\t\t\"device\": \"%s\",\n"
+          "\t\t\t\"cost\": \"%i\",\n"
+          "\t\t\t\"source\": \"%s\"\n"
+          "\t\t},\n",
+          format_prefix(rt->src->prefix, rt->src->plen),
+          format_address(rt->nexthop),"device",rt->smoothed_metric,
+          format_prefix(rt->src->src_prefix, rt->src->src_plen));
+      }
+      route_stream_done(routes);
+  }
+
+
+  //end file
+  fprintf(topofile, "\t]\n}");
+
+
+  fflush(topofile);
 
 }
 
