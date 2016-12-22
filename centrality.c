@@ -17,7 +17,7 @@ void printList(struct contribute *head) {
    struct contribute *ptr = head;
    printf("[ ");
    while(ptr != NULL) {
-      printf("(%s,%d) ",ptr->neigh->ifp->name,ptr->contribute);
+      printf("(%s,%d) ",format_address(ptr->neigh->address),ptr->contribute);
       //printf("(%d) ",ptr->contribute);
       ptr = ptr->next;
    }
@@ -67,6 +67,39 @@ struct contribute *update_contributors(struct contribute *head,
    	link->next = head;
    	head = link;
    }
+   printList(head);
+   return head;
+}
+
+struct contribute* remove_contribute(struct contribute *head, struct neighbour *neigh) {
+   struct contribute* current = head;
+   struct contribute* previous = NULL;
+   if(head == NULL) {
+      printList(head);
+      return NULL;
+   }
+   while(current->neigh != neigh) {
+      //if it is last contribute
+      if(current->next == NULL) {
+         return head;
+      } else {
+         //store reference to current link
+         previous = current;
+         //move to next link
+         current = current->next;
+      }
+   }
+   //found a match, update the link
+   printf("CENTR; Removing contribute<%s,%hu>\n",
+          format_address(current->neigh->address), current->contribute);
+   if(current == head) {
+      //change first to point to next link
+      head = head->next;
+   } else {
+      //bypass the current link
+      previous->next = current->next;
+   }
+   printList(head);
    return head;
 }
 

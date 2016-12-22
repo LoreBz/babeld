@@ -75,7 +75,7 @@ const char *logfile = NULL,
     *pidfile = "/var/run/babeld.pid",
     *state_file = "/var/lib/babel-state";
 const char *cent_file = "dump_centr.csv";
-const char *topo_filename = "topology.json";
+const char *topo_filename = NULL;
 FILE *logcentfd;
 FILE *topofile;
 
@@ -814,11 +814,13 @@ main(int argc, char **argv)
             dump_tables(stdout);
             dumping = 0;
             dump_centrality(logcentfd, node_centrality());
-            dump_topology();
+            if (topo_filename!=NULL)
+              dump_topology();
         }
     }
 
     debugf("Exiting...\n");
+    printf("Exiting...%ld.%06ld\n", now.tv_sec, now.tv_usec);
     usleep(roughly(10000));
     gettime(&now);
 
@@ -1142,7 +1144,7 @@ dump_topology() {
   //FOPEN Creates an empty file for writing. If a file with the same name
   //already exists, its content is erased and the file
   //is considered as a new empty file.
-  topofile = fopen(topo_filename, "w");
+  topofile = fopen(topo_filename, "a");
   printf("%ld.%06ld DUMP ROUTES TO TOPOLOGY FILE\n",now.tv_sec,now.tv_usec);
 
   //header
@@ -1152,19 +1154,24 @@ dump_topology() {
     "\t\"version\": \"1.8.0\",\n"
     "\t\"metric\": \"ff_dat_metric\",\n"
     "\t\"router_id\": \"%s\",\n"
-    "\t\"topology_id\": \"%ld.%06ld\"\n"
+    "\t\"topology_id\": \"%ld.%06ld\",\n"
     "\t\"routes\": [\n",
     format_eui64(myid),
     now.tv_sec,now.tv_usec);
 
   struct xroute_stream *xroutes;
   struct route_stream *routes;
+  unsigned char ifaddr[16];
 
   xroutes = xroute_stream();
   if(xroutes) {
       while(1) {
           struct xroute *xrt = xroute_stream_next(xroutes);
           if(xrt == NULL) break;
+
+          struct interface *ifp=getIf_by_index(xrt->ifindex);
+          getIfAddr(ifp, AF_INET, ifaddr);
+
           fprintf(topofile, "\t\t{\n"
             "\t\t\t\"destination\": \"%s\",\n"
             "\t\t\t\"next\": \"%s\",\n"
@@ -1173,7 +1180,7 @@ dump_topology() {
             "\t\t\t\"source\": \"%s\"\n"
             "\t\t},\n",
             format_prefix(xrt->prefix, xrt->plen),
-            "Xroute_next","Xroute_device",xrt->metric,
+            format_address(ifaddr),ifp->name,xrt->metric,
             format_prefix(xrt->src_prefix, xrt->src_plen));
       }
       xroute_stream_done(xroutes);
@@ -1184,6 +1191,7 @@ dump_topology() {
       while(1) {
           struct babel_route *rt = route_stream_next(routes);
           if(rt == NULL) break;
+
           fprintf(topofile, "\t\t{\n"
           "\t\t\t\"destination\": \"%s\",\n"
           "\t\t\t\"next\": \"%s\",\n"
@@ -1192,7 +1200,7 @@ dump_topology() {
           "\t\t\t\"source\": \"%s\"\n"
           "\t\t},\n",
           format_prefix(rt->src->prefix, rt->src->plen),
-          format_address(rt->nexthop),"device",rt->smoothed_metric,
+          format_address(rt->nexthop),rt->neigh->ifp->name,rt->smoothed_metric,
           format_prefix(rt->src->src_prefix, rt->src->src_plen));
       }
       route_stream_done(routes);

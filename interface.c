@@ -584,3 +584,12 @@ int getIfAddr(struct interface *ifp, int af, unsigned char* retval) {
   }
   return EXIT_FAILURE;
 }
+
+struct interface *getIf_by_index(unsigned int index) {
+  struct interface *ifp;
+  FOR_ALL_INTERFACES(ifp) {
+    if(ifp->ifindex == index)
+      return ifp;
+  }
+  return NULL;
+}

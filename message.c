@@ -200,11 +200,11 @@ parse_update_subtlv(struct interface *ifp,
               trough_me=0;
             }
 
-            if (trough_me) {
-              neigh = find_neighbour(from, ifp);
-              struct babel_route *route = find_route_entry(prefix, plen);
-              struct xroute *xroute = find_xroute_entry(prefix,plen);
+            neigh = find_neighbour(from, ifp);
+            struct babel_route *route = find_route_entry(prefix, plen);
+            struct xroute *xroute = find_xroute_entry(prefix,plen);
 
+            if (trough_me) {
               if(route!=NULL) {
                 printf("Found route matching prefix (pref:%s)\t",
                       format_prefix(route->src->prefix, route->src->plen));
@@ -222,9 +222,19 @@ parse_update_subtlv(struct interface *ifp,
                 printf("Route not found :(\n");
               }
             } else {
-              printf("Ignoring Centrality info, not trough me\n");
-              //e invece qui possiamo fare garbage collection contributi
-              //che non passano piu da noi
+              //printf("Ignoring Centrality/removing no more valid contributes\n");
+              if (route!=NULL) {
+                printf("Ignoring/removing not trough me contribute for neigh=%s,route%s\n",
+                  format_address(neigh->address),format_prefix(route->src->prefix, route->src->plen));
+                printList(route->contributors);
+                route->contributors = remove_contribute(route->contributors,neigh);
+              }
+              else if (xroute!=NULL) {
+                printf("Ignoring/removing not trough me contribute for neigh=%s,route%s\n",
+                  format_address(neigh->address),format_prefix(xroute->prefix, xroute->plen));
+                printList(route->contributors);
+                xroute->contributors = remove_contribute(xroute->contributors,neigh);
+              }
             }
 
         } else {
