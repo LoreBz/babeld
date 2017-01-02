@@ -183,7 +183,7 @@ parse_update_subtlv(struct interface *ifp,
                   now.tv_sec,now.tv_usec, format_prefix(prefix, plen),
                   format_address(rhop), format_address(from), contribute);
             /*logic of onReceive(Centrality Info)
-            if I am rhop update contributors, otherwise ignore SUBTLV*/
+            if I am rhop update contributors, otherwise ignore/removeContr SUBTLV*/
             unsigned char myAddr[16];
             getIfAddr(ifp, AF_INET, myAddr);
             printf("Receiving interface %s:%s\n",ifp->name,
@@ -226,13 +226,11 @@ parse_update_subtlv(struct interface *ifp,
               if (route!=NULL) {
                 printf("Ignoring/removing not trough me contribute for neigh=%s,route%s\n",
                   format_address(neigh->address),format_prefix(route->src->prefix, route->src->plen));
-                printList(route->contributors);
                 route->contributors = remove_contribute(route->contributors,neigh);
               }
               else if (xroute!=NULL) {
                 printf("Ignoring/removing not trough me contribute for neigh=%s,route%s\n",
                   format_address(neigh->address),format_prefix(xroute->prefix, xroute->plen));
-                printList(route->contributors);
                 xroute->contributors = remove_contribute(xroute->contributors,neigh);
               }
             }

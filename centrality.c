@@ -67,19 +67,16 @@ struct contribute *update_contributors(struct contribute *head,
    	link->next = head;
    	head = link;
    }
-   printList(head);
    return head;
 }
 
 struct contribute* remove_contribute(struct contribute *head, struct neighbour *neigh) {
    struct contribute* current = head;
    struct contribute* previous = NULL;
-   if(head == NULL) {
-      printList(head);
-      return NULL;
-   }
+   if(head == NULL)
+      return head;
    while(current->neigh != neigh) {
-      //if it is last contribute
+      //if it is last element
       if(current->next == NULL) {
          return head;
       } else {
@@ -99,7 +96,7 @@ struct contribute* remove_contribute(struct contribute *head, struct neighbour *
       //bypass the current link
       previous->next = current->next;
    }
-   printList(head);
+   free(current);//attenzione!!!
    return head;
 }
 
