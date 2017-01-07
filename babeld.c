@@ -1134,7 +1134,9 @@ static void
 dump_centrality(FILE *out, unsigned short c) {
 
   printf("%ld.%06ld DUMP CENTRALITY=%hu\n",now.tv_sec,now.tv_usec,c);
-  fprintf(out, "%ld.%06ld,%hu\n",now.tv_sec,now.tv_usec,c);
+  fprintf(out, "%ld.%06ld,%hu,",now.tv_sec,now.tv_usec,c);
+  unsigned short mc = node_centrality_multiIP();
+  fprintf(out, "%hu\n", mc);
   fflush(out);
 
 }
