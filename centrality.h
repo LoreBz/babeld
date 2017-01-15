@@ -6,10 +6,11 @@ struct contribute {
     struct contribute *next;
 };
 
-struct src_contribute {
-  struct source *src;
-  struct contribute *contributors;
-  struct src_contribute *next;
+struct src2contribute {
+  unsigned char srcid[8];
+  unsigned short interfaces_counter;
+  unsigned short aggregate_contribute;
+  struct src2contribute *next;
 };
 
 unsigned short total_contribute(struct contribute *head);

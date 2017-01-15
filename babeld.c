@@ -103,7 +103,7 @@ static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0;
 static int accept_local_connections(void);
 static void init_signals(void);
 static void dump_tables(FILE *out);
-static void dump_centrality(FILE *out, unsigned short c);
+static void dump_centrality(FILE *out);
 static void dump_topology();
 
 static int
@@ -813,7 +813,7 @@ main(int argc, char **argv)
         if(UNLIKELY(debug || dumping)) {
             dump_tables(stdout);
             dumping = 0;
-            dump_centrality(logcentfd, node_centrality());
+            dump_centrality(logcentfd);
             if (topo_filename!=NULL)
               dump_topology();
         }
@@ -1131,18 +1131,22 @@ dump_xroute(FILE *out, struct xroute *xroute)
 }
 
 static void
-dump_centrality(FILE *out, unsigned short c) {
-
-  printf("%ld.%06ld DUMP CENTRALITY=%hu\n",now.tv_sec,now.tv_usec,c);
-  fprintf(out, "%ld.%06ld,%hu,",now.tv_sec,now.tv_usec,c);
+dump_centrality(FILE *out)
+{
+  //unsigned short nc = node_centrality();
   unsigned short mc = node_centrality_multiIP();
-  fprintf(out, "%hu\n", mc);
+  /*printf("%ld.%06ld DUMP CENTRALITY=(%hu,MIP:%hu)\n",
+  now.tv_sec,now.tv_usec,nc,mc);*/
+  printf("%ld.%06ld DUMP mipCENTRALITY=%hu\n",
+  now.tv_sec,now.tv_usec,mc);
+  //fprintf(out, "%ld.%06ld,%hu,%hu\n",now.tv_sec,now.tv_usec,nc,mc);
+  fprintf(out, "%ld.%06ld,%hu\n",now.tv_sec,now.tv_usec,mc);
   fflush(out);
-
 }
 
 static void
-dump_topology() {
+dump_topology()
+{
   //FOPEN Creates an empty file for writing. If a file with the same name
   //already exists, its content is erased and the file
   //is considered as a new empty file.
@@ -1183,7 +1187,7 @@ dump_topology() {
             "\t\t},\n",
             format_prefix(xrt->prefix, xrt->plen),
             format_address(ifaddr),ifp->name,xrt->metric,
-            format_prefix(xrt->src_prefix, xrt->src_plen));
+            format_eui64(myid));
       }
       xroute_stream_done(xroutes);
   }
@@ -1203,7 +1207,7 @@ dump_topology() {
           "\t\t},\n",
           format_prefix(rt->src->prefix, rt->src->plen),
           format_address(rt->nexthop),rt->neigh->ifp->name,rt->smoothed_metric,
-          format_prefix(rt->src->src_prefix, rt->src->src_plen));
+          format_eui64(rt->src->id));
       }
       route_stream_done(routes);
   }
