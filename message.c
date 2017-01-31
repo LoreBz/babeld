@@ -123,7 +123,7 @@ network_prefix(int ae, int plen, unsigned int omitted,
 }
 
 static void
-parse_update_subtlv(struct interface *ifp,
+parse_update_subtlv(struct interface *ifp, unsigned char *router_id,
                     const unsigned char *prefix, unsigned char plen,
                     const unsigned char *from,
                     int metric, const unsigned char *a, int alen,
@@ -178,9 +178,9 @@ parse_update_subtlv(struct interface *ifp,
           memcpy(rhop, a+i+4, 16);
           unsigned char myAddr[16];
           getIfAddr(ifp, AF_INET, myAddr);
-          printf("SUBTLV_CENTRALITY:<Prefix:%s;RH:%s;neigh:%s;"
+          printf("SUBTLV_CENTRALITY:<DST:%s Prefix:%s RH:%s neigh:%s "
                   "contribute:%i> on %s\n",
-                  format_prefix(prefix, plen),
+                  format_eui64(router_id), format_prefix(prefix, plen),
                   format_address(rhop), format_address(from),
                   contribute,format_address(myAddr));
             /*logic of onReceive(Centrality Info)
@@ -199,27 +199,27 @@ parse_update_subtlv(struct interface *ifp,
             }
 
             neigh = find_neighbour(from, ifp);
-            struct babel_route *route = find_route_entry(prefix, plen);
+            //struct babel_route *route = find_route_entry(prefix, plen);
+            struct destination *dest=find_destination(router_id);
 
             if (trough_me) {
-              if(route!=NULL) {
-                printf("Found route matching prefix (pref:%s)\n",
-                      format_prefix(route->src->prefix, route->src->plen));
+              if(dest!=NULL) {
+                printf("Found destination matching nodeid (pref:%s)\n",
+                      format_eui64(dest->nodeid));
                 //printf("adding contribute to its contributors list!\n");
-                route->contributors = update_contributors(route->contributors,
+                dest->contributors = update_contributors(dest->contributors,
                                           neigh,contribute);
               } else {
-                //only if receiving first announcments for present route
+                //only if receiving first announcment for present route
                 printf("Route not found :(\n");
               }
             } else {
-              if (route!=NULL) {
+              if (dest!=NULL) {
                 printf("Ignoring/removing not trough me"
-                "contribute for neigh=%s,route%s\n",
-                  format_address(neigh->address),
-                  format_prefix(route->src->prefix, route->src->plen));
-                route->contributors =
-                  remove_contribute(route->contributors,neigh);
+                "contribute for neigh=%s,dest%s\n",
+                  format_address(neigh->address), format_eui64(dest->nodeid));
+                dest->contributors =
+                  remove_contribute(dest->contributors,neigh);
               }
             }
 
@@ -586,7 +586,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     goto done;
             }
           //ohoh, qua si può smanettare un po', e' il caso di dare un occhiata
-            parse_update_subtlv(ifp, prefix, plen, from,
+            parse_update_subtlv(ifp, router_id, prefix, plen, from,
                                 metric, message + 2 + parsed_len,
                                 len - parsed_len, channels, &channels_len);
             update_route(router_id, prefix, plen, zeroes, 0, seqno,
@@ -701,7 +701,7 @@ parse_packet(const unsigned char *from, struct interface *ifp,
                     goto done;
             }
 
-            parse_update_subtlv(ifp, prefix, plen, from,
+            parse_update_subtlv(ifp, router_id, prefix, plen, from,
                                 metric, message + 2 + parsed_len,
                                 len - parsed_len, channels, &channels_len);
             update_route(router_id, prefix, plen, src_prefix, src_plen,
@@ -1369,7 +1369,6 @@ flushupdates(struct interface *ifp)
     unsigned char last_plen = 0xFF;
     unsigned char last_src_plen = 0xFF;
     int i;
-    unsigned short route_contribute = 0;
   /*
   "routing hop" or "second_hop"; see
   http://www.mail-archive.com/babel-users@lists.alioth.debian.org/msg02602.html
@@ -1430,12 +1429,6 @@ flushupdates(struct interface *ifp)
             if(xroute && (!route || xroute->metric <= kernel_metric)) {
                  //if route exported then ifp is rhop
                  getIfAddr(ifp, AF_INET, rhop);
-                 printf("UpdateC, xroute<Prefix:%s;NH:%s*>\n",
-                        format_prefix(xroute->prefix, xroute->plen),
-                        format_address(rhop));
-
-                 //aggregating contributes for this route (future for source)
-                 //xroute_contribute = total_contribute(xroute->contributors);
                  really_send_update(ifp, myid,
                                  xroute->prefix, xroute->plen,
                                  xroute->src_prefix, xroute->src_plen,
@@ -1483,20 +1476,24 @@ flushupdates(struct interface *ifp)
                            MIN(route->channels_len, MAX_CHANNEL_HOPS - 1));
                     chlen = 1 + MIN(route->channels_len, MAX_CHANNEL_HOPS - 1);
                 }
+                //updating destination tables! NB: this table is indexed by
+                //nodeids, that should be the same even after reboot (except for
+                // the -r option of randomid).
+                update_dest_table(route->src->id);
+                //aggregating contributes of this node for this destination
+                struct destination* dest= find_destination(route->src->id);
+                unsigned short dest_contribute = total_contribute(dest->contributors);
 
-                //aggregating contributes of n for this route (future for src)
-                //src_contribute = total_contribute(route->src->contributors);
-                route_contribute = total_contribute(route->contributors);
-
-                printf("UpdateC, route<Prefix:%s;NH:%s;contribute:%i>\n",
+                printf("UpdateC, route<DST:%s Prefix:%s;NH:%s;contribute:%i>\n",
+                format_eui64(route->src->id),
                 format_prefix(route->src->prefix, route->src->plen),
-                format_address(route->nexthop), 1 + route_contribute);
+                format_address(dest->nexthop), 1 + dest_contribute);
 
                 really_send_update(ifp, route->src->id,
                                    route->src->prefix, route->src->plen,
                                    route->src->src_prefix, route->src->src_plen,
-                                   seqno, metric, 1 + route_contribute,
-                                   route->nexthop, channels, chlen);
+                                   seqno, metric, 1 + dest_contribute,
+                                   dest->nexthop, channels, chlen);
                 update_source(route->src, seqno, metric);
                 last_prefix = route->src->prefix;
                 last_plen = route->src->plen;

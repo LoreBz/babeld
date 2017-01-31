@@ -248,8 +248,11 @@ void printSources() {
       while(1) {
           struct babel_route *rt = route_stream_next(routes);
           if(rt == NULL) break;
-          printf("RT:%s SRC:%s\n", format_prefix(rt->src->prefix,rt->src->plen),
-              format_eui64(rt->src->id));
+          struct source *src=rt->src;
+          /*printf("RT:%s SRC:%s\n", format_prefix(rt->src->prefix,rt->src->plen),
+              format_eui64(rt->src->id));*/
+          printf("SRC:%s PREX%s SEQ:%hu\n",format_eui64(src->id),
+          format_prefix(src->prefix,src->plen), src->seqno);
       }
       route_stream_done(routes);
   }
@@ -262,7 +265,9 @@ void printSources2() {
   printf("$$$$$$$$$$$$$$\n");
   while(sources[index]!=NULL) {
     src=sources[index];
-    printf("SRC:%s\n",format_eui64(src->id));
+    printf("SRC:%s PREX%s SEQ:%hu\n",format_eui64(src->id),
+    format_prefix(src->prefix,src->plen), src->seqno);
+    index+=1;
   }
   printf("$$$$$$$$$$$$$$\n");
 }
