@@ -10,6 +10,7 @@ struct destination {
   unsigned char nodeid[8];
   unsigned short metric;
   unsigned char nexthop[16];
+  unsigned short active;
   struct contribute *contributors;
   struct destination *next;
 };

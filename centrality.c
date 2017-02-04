@@ -33,12 +33,14 @@ NB: each route entry has a contributors list, i.e. for each known prefix
 unsigned short total_contribute(struct contribute *head) {
 	struct contribute *ptr = head;
 	unsigned short total = 0;
+  //printf("\t");
 	while(ptr != NULL) {
       total = total + (ptr->contribute);
-      /*printf("\t<%s,%i>\n",
+      /*printf("\t<%s,%i> ",
           format_address(ptr->neigh->address), ptr->contribute);*/
       ptr = ptr->next;
    }
+   //printf("\n");
    return total;
 }
 
@@ -84,8 +86,8 @@ struct contribute* remove_contribute(struct contribute *head,
       }
    }
    //found a match, remove it!
-   /*printf("CENTR; Removing contribute<%s,%hu>\n",
-          format_address(current->neigh->address), current->contribute);*/
+   printf("CENTR; Removing contribute<%s,%hu>\n",
+          format_address(current->neigh->address), current->contribute);
    if(current == head) {
       head = head->next;
    } else {
@@ -111,6 +113,7 @@ struct destination* find_destination(unsigned char *nodeid) {
 //look among routes with src->id==nodeid and get best route.
 //copy src->metric and route->nexthop as fields of destination indexed by nodeid
 void update_dest_table(unsigned char *nodeid) {
+  //printf("Updating DST %s\n",format_eui64(nodeid));
   unsigned short best_metric=INFINITY;
   unsigned char nexthop[16];
   //loop over installed routes
@@ -127,6 +130,9 @@ void update_dest_table(unsigned char *nodeid) {
             //if this route offers best route to nodeid copy the nexthop
             if(best_metric==current_src->metric) {
               memcpy(nexthop,rt->nexthop,16);
+              /*printf("\tBest SRC -> RT:%s RH: %s MET: %hu\n",
+                format_prefix(current_src->prefix, current_src->plen),
+                format_address(rt->nexthop), best_metric);*/
             }
           }
       }
@@ -137,7 +143,6 @@ void update_dest_table(unsigned char *nodeid) {
       if (dest) {
         dest->metric=best_metric;
         memcpy(dest->nexthop, nexthop, 16);
-        return;
       } else {
         //should allocate destination and add it to the list
         struct destination *link =
@@ -148,21 +153,50 @@ void update_dest_table(unsigned char *nodeid) {
         link->contributors=NULL;
        	link->next = destinations;
        	destinations = link;
-        return;
       }
+      return;
+  }
+}
+
+void inactive_dest() {
+  struct destination *ptr=destinations;
+  while (ptr!=NULL) {
+    ptr->active=0;
+    ptr=ptr->next;
+  }
+}
+
+void update_active_dest() {
+  struct route_stream *routes;
+  routes = route_stream(ROUTE_INSTALLED);
+  if(routes) {
+    struct destination *dest;
+      while(1) {
+          struct babel_route *rt = route_stream_next(routes);
+          if(rt == NULL) break;
+          dest=find_destination(rt->src->id);
+          if(dest)
+            dest->active=1;
+      }
+      route_stream_done(routes);
   }
 }
 
 unsigned short node_centrality() {
+  inactive_dest();
+  update_active_dest();
+  //aggregate all contributes
   struct destination *ptr=destinations;
   unsigned short tot=0;
   unsigned short part=0;
   printf("### Computing centrality\n");
   while(ptr!=NULL) {
-    part=total_contribute(ptr->contributors);
-    printf("DST %s->contr: %hu\n",format_eui64(ptr->nodeid),part);
-    tot+=part;
-    ptr=ptr->next;
+    if(ptr->active) {
+      part=total_contribute(ptr->contributors);
+      printf("DST %s->contr: %hu\n",format_eui64(ptr->nodeid),part);
+      tot+=part;
+      ptr=ptr->next;
+    }
   }
   printf("### Cent of this node=%hu\n",tot);
   return tot;

@@ -1481,7 +1481,7 @@ flushupdates(struct interface *ifp)
                 // the -r option of randomid).
                 update_dest_table(route->src->id);
                 //aggregating contributes of this node for this destination
-                struct destination* dest= find_destination(route->src->id);
+                struct destination* dest = find_destination(route->src->id);
                 unsigned short dest_contribute = total_contribute(dest->contributors);
 
                 printf("UpdateC, route<DST:%s Prefix:%s;NH:%s;contribute:%i>\n",
