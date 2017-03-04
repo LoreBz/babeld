@@ -903,6 +903,10 @@ main(int argc, char **argv)
       fclose(topofile);
     }
 
+    if (cent_dumping) {
+      fclose(logcentfd);
+    }
+
     if(pidfile)
         unlink(pidfile);
     return 0;
@@ -1159,14 +1163,15 @@ dump_xroute(FILE *out, struct xroute *xroute)
 static void
 dump_centrality(FILE *out)
 {
+  gettime(&now);
   unsigned short nc = node_centrality();
   //unsigned short mc = node_centrality_multiIP();
   /*printf("%ld.%06ld DUMP CENTRALITY=(%hu,MIP:%hu)\n",
   now.tv_sec,now.tv_usec,nc,mc);*/
-  printf("%ld.%06ld DUMP CENTRALITY=%hu\n",
-  now.tv_sec,now.tv_usec,nc);
+  printf("%s DUMP CENTRALITY=%hu\n",
+  format_time(&now),nc);
   //fprintf(out, "%ld.%06ld,%hu,%hu\n",now.tv_sec,now.tv_usec,nc,mc);
-  fprintf(out, "%ld.%06ld,%hu\n",now.tv_sec,now.tv_usec,nc);
+  fprintf(out, "%s,%ld.%06ld,%hu\n",format_time(&now),now.tv_sec,now.tv_usec,nc);
   fflush(out);
   //printInstalledRoutes();
 }

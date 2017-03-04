@@ -530,7 +530,8 @@ const char *format_time(struct timeval *tv){
 	gettimeofday(tv, NULL);
 	nowtime = tv->tv_sec;
 	nowtm = localtime(&nowtime);
-	strftime(tmbuf, sizeof tmbuf, "%d-%m-%Y %H:%M:%S", nowtm);
+	//strftime(tmbuf, sizeof tmbuf, "%d-%m-%Y %H:%M:%S", nowtm);
+  strftime(tmbuf, sizeof tmbuf, "%H:%M:%S", nowtm);
 	snprintf(buf, sizeof buf, "%s.%06ld", tmbuf, tv->tv_usec);
 	return &(buf[0]);
 }
