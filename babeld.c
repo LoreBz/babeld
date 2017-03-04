@@ -71,10 +71,11 @@ int resend_delay = -1;
 int random_id = 0;
 int do_daemonise = 0;
 int skip_kernel_setup = 0;
+int cent_dumping = 0;
 const char *logfile = NULL,
     *pidfile = "/var/run/babeld.pid",
     *state_file = "/var/lib/babel-state";
-const char *cent_file = "dump_centr.csv";
+const char *cent_file = NULL;
 const char *topo_filename = NULL;
 FILE *logcentfd;
 FILE *topofile;
@@ -98,13 +99,14 @@ static int kernel_addr_changed = 0;
 
 struct timeval check_neighbours_timeout, check_interfaces_timeout;
 
-static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0;
+static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0, rt_dumping = 0;
+
 
 static int accept_local_connections(void);
 static void init_signals(void);
 static void dump_tables(FILE *out);
 static void dump_centrality(FILE *out);
-static void dump_topology();
+static void dump_topology(FILE *out);
 
 static int
 kernel_route_notify(struct kernel_route *route, void *closure)
@@ -325,6 +327,7 @@ main(int argc, char **argv)
             break;
         case 'e':
             cent_file = optarg;
+            cent_dumping = 1;
             break;
         case 'n':
             topo_filename = optarg;
@@ -540,9 +543,15 @@ main(int argc, char **argv)
     //gethostname(hostname, 50);
     //strcpy(cent_file, hostname);
     //strcat(cent_file, "_centr_dump.csv");
-
-    logcentfd = fopen(cent_file, "a");
-    //if needed, write a log header now
+    if (cent_dumping) {
+      char cdumpname[80];
+      strcpy(cdumpname,cent_file);
+      strcat(cdumpname,"_");
+      strcat(cdumpname,format_eui64(myid));
+      strcat(cdumpname,"_cdump.csv");
+      logcentfd = fopen(cdumpname, "a");
+      //if needed, write a log header now
+    }
 
     protocol_socket = babel_socket(protocol_port);
     if(protocol_socket < 0) {
@@ -816,9 +825,14 @@ main(int argc, char **argv)
         if(UNLIKELY(debug || dumping)) {
             dump_tables(stdout);
             dumping = 0;
+        }
+
+        if (cent_dumping)
             dump_centrality(logcentfd);
-            if (topo_filename!=NULL)
-              dump_topology();
+
+        if (rt_dumping) {
+          if (topo_filename!=NULL)
+              dump_topology(topofile);
         }
     }
 
@@ -880,8 +894,7 @@ main(int argc, char **argv)
         unlink(local_server_path);
         free(local_server_path);
     }
-    if(pidfile)
-        unlink(pidfile);
+
     debugf("Done.\n");
     if (topo_filename!=NULL) {
       topofile = fopen(topo_filename, "a");
@@ -889,6 +902,9 @@ main(int argc, char **argv)
       fflush(topofile);
       fclose(topofile);
     }
+
+    if(pidfile)
+        unlink(pidfile);
     return 0;
 
  usage:
@@ -1027,6 +1043,7 @@ static void
 sigdump(int signo)
 {
     dumping = 1;
+    rt_dumping = !rt_dumping;
 }
 
 static void
@@ -1155,10 +1172,10 @@ dump_centrality(FILE *out)
 }
 
 static void
-dump_topology()
+dump_topology(FILE *out)
 {
   gettime(&now);
-  FILE *out = fopen(topo_filename, "a");
+  //FILE *out = fopen(topo_filename, "a");
   printf("%s DUMP ROUTES TO TOPOLOGY FILE\n",format_time(&now));
 
   //header
