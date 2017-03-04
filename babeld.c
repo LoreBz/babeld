@@ -329,7 +329,7 @@ main(int argc, char **argv)
         case 'n':
             topo_filename = optarg;
             topofile = fopen(topo_filename, "a");
-            fprintf(topofile, "[\n");
+            fprintf(topofile, "[\n\t{\n\t}");
             fflush(topofile);
             break;
         case 'V':
@@ -823,7 +823,7 @@ main(int argc, char **argv)
     }
 
     debugf("Exiting...\n");
-    printf("Exiting...%ld.%06ld\n", now.tv_sec, now.tv_usec);
+    printf("Exiting...%s\n", format_time(&now));
     usleep(roughly(10000));
     gettime(&now);
 
@@ -885,7 +885,7 @@ main(int argc, char **argv)
     debugf("Done.\n");
     if (topo_filename!=NULL) {
       topofile = fopen(topo_filename, "a");
-      fprintf(topofile, "]");
+      fprintf(topofile, "\n]");
       fflush(topofile);
       fclose(topofile);
     }
@@ -1157,25 +1157,23 @@ dump_centrality(FILE *out)
 static void
 dump_topology()
 {
-  //FOPEN Creates an empty file for writing. If a file with the same name
-  //already exists, its content is erased and the file
-  //is considered as a new empty file.
-  //printSources();
-  //printSources2();
-  topofile = fopen(topo_filename, "a");
-  printf("%ld.%06ld DUMP ROUTES TO TOPOLOGY FILE\n",now.tv_sec,now.tv_usec);
+  gettime(&now);
+  FILE *out = fopen(topo_filename, "a");
+  printf("%s DUMP ROUTES TO TOPOLOGY FILE\n",format_time(&now));
 
   //header
-  fprintf(topofile, "\t{\n"
+
+
+  //fprintf(topofile, "\t{\n"
+  fprintf(out, ",\n\t{\n"
     "\t\t\"type\": \"NetworkRoutes\",\n"
     "\t\t\"protocol\": \"babel2\",\n"
     "\t\t\"version\": \"1.8.0\",\n"
     "\t\t\"metric\": \"ff_dat_metric\",\n"
     "\t\t\"router_id\": \"%s\",\n"
-    "\t\t\"topology_id\": \"%ld.%06ld\",\n"
+    "\t\t\"topology_id\": \"%s\",\n"
     "\t\t\"routes\": [\n",
-    format_eui64(myid),
-    now.tv_sec,now.tv_usec);
+    format_eui64(myid),format_time(&now));
 
   struct xroute_stream *xroutes;
   struct route_stream *routes;
@@ -1191,9 +1189,9 @@ dump_topology()
           struct interface *ifp=getIf_by_index(xrt->ifindex);
           getIfAddr(ifp, AF_INET, ifaddr);
           if(count!=0) {
-            fprintf(topofile, ",\n");
+            fprintf(out, ",\n");
           }
-          fprintf(topofile, "\t\t\t{\n"
+          fprintf(out, "\t\t\t{\n"
             "\t\t\t\t\"destination\": \"%s\",\n"
             "\t\t\t\t\"next\": \"%s\",\n"
             "\t\t\t\t\"device\": \"%s\",\n"
@@ -1210,17 +1208,23 @@ dump_topology()
 
   routes = route_stream(ROUTE_INSTALLED);
   if(routes) {
+  //int cost=0;
       while(1) {
+
           struct babel_route *rt = route_stream_next(routes);
           if(rt == NULL) break;
+          /*if (rt->smoothed_metric == INFINITY)
+            cost = -1;
+          else
+            cost = rt->smoothed_metric;*/
           if(count!=0) {
-            fprintf(topofile, ",\n");
+            fprintf(out, ",\n");
           }
-          fprintf(topofile, "\t\t\t{\n"
+          fprintf(out, "\t\t\t{\n"
           "\t\t\t\t\"destination\": \"%s\",\n"
           "\t\t\t\t\"next\": \"%s\",\n"
           "\t\t\t\t\"device\": \"%s\",\n"
-          "\t\t\t\t\"cost\": \"%i\",\n"
+          "\t\t\t\t\"cost\": \"%d\",\n"
           "\t\t\t\t\"source\": \"%s\"\n"
           "\t\t\t}",
           format_prefix(rt->src->prefix, rt->src->plen),
@@ -1231,10 +1235,8 @@ dump_topology()
       route_stream_done(routes);
   }
 
-
-  //end file
-  fprintf(topofile, "\n\t\t]\n\t},\n");
-  fflush(topofile);
+  fprintf(out, "\n\t\t]\n\t}");
+  fflush(out);
 }
 
 static void
