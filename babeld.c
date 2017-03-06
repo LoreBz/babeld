@@ -99,7 +99,7 @@ static int kernel_addr_changed = 0;
 
 struct timeval check_neighbours_timeout, check_interfaces_timeout;
 
-static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0, rt_dumping = 0;
+static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0, rt_dumping = 0, quitting = 0;
 
 
 static int accept_local_connections(void);
@@ -683,6 +683,20 @@ main(int argc, char **argv)
         if(exiting)
             break;
 
+        if (quitting) {
+          //close logs and abrupt exit
+          if (topo_filename!=NULL) {
+            topofile = fopen(topo_filename, "a");
+            fprintf(topofile, "\n]");
+            fflush(topofile);
+            fclose(topofile);
+          }
+          if (cent_dumping) {
+            fclose(logcentfd);
+          }
+          exit(1);
+        }
+
         if(kernel_socket >= 0 && FD_ISSET(kernel_socket, &readfds)) {
             struct kernel_filter filter = {0};
             filter.route = kernel_route_notify;
@@ -895,7 +909,7 @@ main(int argc, char **argv)
         free(local_server_path);
     }
 
-    debugf("Done.\n");
+
     if (topo_filename!=NULL) {
       topofile = fopen(topo_filename, "a");
       fprintf(topofile, "\n]");
@@ -907,6 +921,7 @@ main(int argc, char **argv)
       fclose(logcentfd);
     }
 
+    debugf("Done.\n");
     if(pidfile)
         unlink(pidfile);
     return 0;
@@ -1051,6 +1066,12 @@ sigdump(int signo)
 }
 
 static void
+sigquit(int signo)
+{
+    quitting = 1;
+}
+
+static void
 sigreopening(int signo)
 {
     reopening = 1;
@@ -1097,6 +1118,12 @@ init_signals(void)
     sa.sa_mask = ss;
     sa.sa_flags = 0;
     sigaction(SIGUSR2, &sa, NULL);
+
+    sigemptyset(&ss);
+    sa.sa_handler = sigquit;
+    sa.sa_mask = ss;
+    sa.sa_flags = 0;
+    sigaction(SIGQUIT, &sa, NULL);
 
 #ifdef SIGINFO
     sigemptyset(&ss);
