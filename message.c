@@ -178,7 +178,7 @@ parse_update_subtlv(struct interface *ifp, unsigned char *router_id,
           memcpy(rhop, a+i+4, 16);
           unsigned char myAddr[16];
           getIfAddr(ifp, AF_INET, myAddr);
-          printf("SUBTLV_CENTRALITY:<DST:%s Prefix:%s RH:%s neigh:%s "
+          debugf("SUBTLV_CENTRALITY:<DST:%s Prefix:%s RH:%s neigh:%s "
                   "contribute:%i> on %s\n",
                   format_eui64(router_id), format_prefix(prefix, plen),
                   format_address(rhop), format_address(from),
@@ -191,10 +191,10 @@ parse_update_subtlv(struct interface *ifp, unsigned char *router_id,
 
             int trough_me=0;
             if(memcmp(myAddr,rhop,16)==0) {
-              printf("rxIP=%s=rh!PASS TROUGH ME!\n",format_address(myAddr));
+              debugf("rxIP=%s=rh!PASS TROUGH ME!\n",format_address(myAddr));
               trough_me=1;
             } else {
-              printf("rxIP=%s <> rh=%s are not equal\n",
+              debugf("rxIP=%s <> rh=%s are not equal\n",
               format_address(myAddr),format_address(rhop));
             }
 
@@ -204,18 +204,18 @@ parse_update_subtlv(struct interface *ifp, unsigned char *router_id,
 
             if (trough_me) {
               if(dest!=NULL) {
-                printf("Found destination matching nodeid (pref:%s)\n",
+                debugf("Found destination matching nodeid (pref:%s)\n",
                       format_eui64(dest->nodeid));
                 //printf("adding contribute to its contributors list!\n");
                 dest->contributors = update_contributors(dest->contributors,
                                           neigh,contribute);
               } else {
                 //only if receiving first announcment for present route
-                printf("Route not found :(\n");
+                debugf("Route not found :(\n");
               }
             } else {
               if (dest!=NULL) {
-                printf("Ignoring/removing not trough me"
+                debugf("Ignoring/removing not trough me"
                 "contribute for neigh=%s,dest%s\n",
                   format_address(neigh->address), format_eui64(dest->nodeid));
                 dest->contributors =
@@ -1484,7 +1484,7 @@ flushupdates(struct interface *ifp)
                 struct destination* dest = find_destination(route->src->id);
                 unsigned short dest_contribute = total_contribute(dest->contributors);
 
-                printf("UpdateC, route<DST:%s Prefix:%s;NH:%s;contribute:%i>\n",
+                debugf("UpdateC, route<DST:%s Prefix:%s;NH:%s;contribute:%i>\n",
                 format_eui64(route->src->id),
                 format_prefix(route->src->prefix, route->src->plen),
                 format_address(dest->nexthop), 1 + dest_contribute);

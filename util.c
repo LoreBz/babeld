@@ -521,17 +521,32 @@ prefix_cmp(const unsigned char *p1, unsigned char plen1,
         return PST_EQUALS;
 }
 
-const char *format_time(struct timeval *tv){
+const char *format_time(){
 	time_t nowtime;
 	struct tm *nowtm;
 	char tmbuf[64];
 	static char buf[64];
 
-	gettimeofday(tv, NULL);
-	nowtime = tv->tv_sec;
+  struct timeval stv;
+	gettimeofday(&stv, NULL);
+
+  nowtime = stv.tv_sec;
 	nowtm = localtime(&nowtime);
 	//strftime(tmbuf, sizeof tmbuf, "%d-%m-%Y %H:%M:%S", nowtm);
   strftime(tmbuf, sizeof tmbuf, "%H:%M:%S", nowtm);
-	snprintf(buf, sizeof buf, "%s.%06ld", tmbuf, tv->tv_usec);
+	snprintf(buf, sizeof buf, "%s.%06ld", tmbuf, stv.tv_usec);
 	return &(buf[0]);
+}
+
+unsigned long getMicroDiff(struct timeval *great, struct timeval *small) {
+  int gsec=great->tv_sec;
+  int ssec=small->tv_sec;
+  int gusec=great->tv_usec;
+  int susec=small->tv_usec;
+
+  unsigned long sdiff=gsec-ssec;
+  sdiff*=1000000;
+  unsigned long retval=sdiff+gusec-susec;
+  return retval;
+
 }

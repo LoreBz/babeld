@@ -189,16 +189,16 @@ unsigned short node_centrality() {
   struct destination *ptr=destinations;
   unsigned short tot=0;
   unsigned short part=0;
-  printf("### Computing centrality\n");
+  debugf("### Computing centrality\n");
   while(ptr!=NULL) {
     if(ptr->active) {
       part=total_contribute(ptr->contributors);
-      printf("DST %s->contr: %hu\n",format_eui64(ptr->nodeid),part);
+      debugf("DST %s->contr: %hu\n",format_eui64(ptr->nodeid),part);
       tot+=part;
       ptr=ptr->next;
     }
   }
-  printf("### Cent of this node=%hu\n",tot);
+  printf("# C(node)=%hu\n",tot);
   return tot;
 }
 /*unsigned short node_centrality() {

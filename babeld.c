@@ -98,6 +98,7 @@ static int kernel_link_changed = 0;
 static int kernel_addr_changed = 0;
 
 struct timeval check_neighbours_timeout, check_interfaces_timeout;
+struct timeval time2topo_dump;
 
 static volatile sig_atomic_t exiting = 0, dumping = 0, reopening = 0, rt_dumping = 0, quitting = 0;
 
@@ -107,6 +108,7 @@ static void init_signals(void);
 static void dump_tables(FILE *out);
 static void dump_centrality(FILE *out);
 static void dump_topology(FILE *out);
+long int microSecDiff(struct timeval *actual, struct timeval *last);
 
 static int
 kernel_route_notify(struct kernel_route *route, void *closure)
@@ -626,13 +628,35 @@ main(int argc, char **argv)
 
     debugf("Entering main loop.\n");
 
+    struct timeval last,next_dump;
+    long int spent=0;
+    gettime(&last);
+    gettime(&next_dump);
+
     while(1) {
         struct timeval tv;
         fd_set readfds;
 
-        gettime(&now);
+        if (cent_dumping) {
+          spent=microSecDiff(&now, &last);
+          if (spent>=499000) {
+            gettime(&last);
+            printf("%s\n", format_time());
+
+            dump_centrality(logcentfd);
+            if (rt_dumping)
+              dump_topology(topofile);
+            //printf("%ld.%ld\t%ld.%ld\n",(long int)now.tv_sec,(long int)now.tv_usec,(long int)last.tv_sec,(long int)last.tv_usec);
+            timeval_add_msec(&next_dump,&now,499);
+          }
+        }
 
         tv = check_neighbours_timeout;
+        if (cent_dumping) {
+          if (timeval_compare(&tv,&next_dump)>0)
+            tv = next_dump;
+        }
+
         timeval_min(&tv, &check_interfaces_timeout);
         timeval_min_sec(&tv, expiry_time);
         timeval_min_sec(&tv, source_expiry_time);
@@ -679,6 +703,10 @@ main(int argc, char **argv)
         }
 
         gettime(&now);
+        /*if (rt_dumping) {
+          if (topo_filename!=NULL)
+              dump_topology(topofile);
+        }*/
 
         if(exiting)
             break;
@@ -686,7 +714,8 @@ main(int argc, char **argv)
         if (quitting) {
           //close logs and abrupt exit
           if (topo_filename!=NULL) {
-            topofile = fopen(topo_filename, "a");
+            //topofile = fopen(topo_filename, "a");
+            fflush(topofile);
             fprintf(topofile, "\n]");
             fflush(topofile);
             fclose(topofile);
@@ -729,7 +758,10 @@ main(int argc, char **argv)
                 }
             }
         }
-
+        /*if (rt_dumping) {
+          if (topo_filename!=NULL)
+              dump_topology(topofile);
+        }*/
         if(local_server_socket >= 0 && FD_ISSET(local_server_socket, &readfds))
            accept_local_connections();
 
@@ -805,7 +837,10 @@ main(int argc, char **argv)
             expire_sources();
             source_expiry_time = now.tv_sec + roughly(300);
         }
-
+        /*if (rt_dumping) {
+          if (topo_filename!=NULL)
+              dump_topology(topofile);
+        }*/
         FOR_ALL_INTERFACES(ifp) {
             if(!if_up(ifp))
                 continue;
@@ -839,14 +874,6 @@ main(int argc, char **argv)
         if(UNLIKELY(debug || dumping)) {
             dump_tables(stdout);
             dumping = 0;
-        }
-
-        if (cent_dumping)
-            dump_centrality(logcentfd);
-
-        if (rt_dumping) {
-          if (topo_filename!=NULL)
-              dump_topology(topofile);
         }
     }
 
@@ -911,7 +938,8 @@ main(int argc, char **argv)
 
 
     if (topo_filename!=NULL) {
-      topofile = fopen(topo_filename, "a");
+      //topofile = fopen(topo_filename, "a");
+      fflush(topofile);
       fprintf(topofile, "\n]");
       fflush(topofile);
       fclose(topofile);
@@ -1063,6 +1091,7 @@ sigdump(int signo)
 {
     dumping = 1;
     rt_dumping = !rt_dumping;
+    //dump_topology(topofile);
 }
 
 static void
@@ -1190,16 +1219,16 @@ dump_xroute(FILE *out, struct xroute *xroute)
 static void
 dump_centrality(FILE *out)
 {
-  gettime(&now);
+  //gettime(&now);
   unsigned short nc = node_centrality();
   //unsigned short mc = node_centrality_multiIP();
   /*printf("%ld.%06ld DUMP CENTRALITY=(%hu,MIP:%hu)\n",
   now.tv_sec,now.tv_usec,nc,mc);*/
-  printf("%s DUMP CENTRALITY=%hu\n",
-  format_time(&now),nc);
+  //printf("%s DUMP CENTRALITY=%hu\n",
+  //format_time(&now),nc);
   //fprintf(out, "%ld.%06ld,%hu,%hu\n",now.tv_sec,now.tv_usec,nc,mc);
   fprintf(out, "%s,%ld.%06ld,%hu\n",format_time(&now),now.tv_sec,now.tv_usec,nc);
-  fflush(out);
+  //fflush(out);
   //printInstalledRoutes();
 }
 
@@ -1208,17 +1237,13 @@ dump_topology(FILE *out)
 {
   gettime(&now);
   //FILE *out = fopen(topo_filename, "a");
-  printf("%s DUMP ROUTES TO TOPOLOGY FILE\n",format_time(&now));
+  //printf("%s DUMP ROUTES TO TOPOLOGY FILE\n",format_time(&now));
 
   //header
 
 
   //fprintf(topofile, "\t{\n"
   fprintf(out, ",\n\t{\n"
-    "\t\t\"type\": \"NetworkRoutes\",\n"
-    "\t\t\"protocol\": \"babel2\",\n"
-    "\t\t\"version\": \"1.8.0\",\n"
-    "\t\t\"metric\": \"ff_dat_metric\",\n"
     "\t\t\"router_id\": \"%s\",\n"
     "\t\t\"topology_id\": \"%s\",\n"
     "\t\t\"routes\": [\n",
@@ -1243,13 +1268,10 @@ dump_topology(FILE *out)
           fprintf(out, "\t\t\t{\n"
             "\t\t\t\t\"destination\": \"%s\",\n"
             "\t\t\t\t\"next\": \"%s\",\n"
-            "\t\t\t\t\"device\": \"%s\",\n"
-            "\t\t\t\t\"cost\": \"%i\",\n"
-            "\t\t\t\t\"source\": \"%s\"\n"
+            "\t\t\t\t\"cost\": \"%i\"\n"
             "\t\t\t}",
             format_prefix(xrt->prefix, xrt->plen),
-            format_address(ifaddr),ifp->name,xrt->metric,
-            format_eui64(myid));
+            format_address(ifaddr),xrt->metric);
             count++;
       }
       xroute_stream_done(xroutes);
@@ -1272,20 +1294,20 @@ dump_topology(FILE *out)
           fprintf(out, "\t\t\t{\n"
           "\t\t\t\t\"destination\": \"%s\",\n"
           "\t\t\t\t\"next\": \"%s\",\n"
-          "\t\t\t\t\"device\": \"%s\",\n"
-          "\t\t\t\t\"cost\": \"%d\",\n"
-          "\t\t\t\t\"source\": \"%s\"\n"
+          "\t\t\t\t\"cost\": \"%d\"\n"
           "\t\t\t}",
           format_prefix(rt->src->prefix, rt->src->plen),
-          format_address(rt->nexthop),rt->neigh->ifp->name,rt->smoothed_metric,
-          format_eui64(rt->src->id));
+          format_address(rt->nexthop),rt->smoothed_metric);
           count++;
       }
       route_stream_done(routes);
   }
 
   fprintf(out, "\n\t\t]\n\t}");
-  fflush(out);
+
+
+    fflush(out);
+
 }
 
 static void
@@ -1363,4 +1385,10 @@ reopen_logfile()
         close(lfd);
 
     return 1;
+}
+
+long int microSecDiff(struct timeval *actual, struct timeval *last) {
+  long int actualtime = actual->tv_sec*1000000+actual->tv_usec;
+  long int lasttime = last->tv_sec*1000000+last->tv_usec;
+  return (actualtime - lasttime);
 }
