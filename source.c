@@ -239,35 +239,3 @@ check_sources_released(void)
                     (int)src->route_count);
     }
 }
-
-void printSources() {
-  printf("$$$$$$$$$$$$$$$\n");
-  struct route_stream *routes;
-  routes = route_stream(ROUTE_INSTALLED);
-  if(routes) {
-      while(1) {
-          struct babel_route *rt = route_stream_next(routes);
-          if(rt == NULL) break;
-          struct source *src=rt->src;
-          /*printf("RT:%s SRC:%s\n", format_prefix(rt->src->prefix,rt->src->plen),
-              format_eui64(rt->src->id));*/
-          printf("SRC:%s PREX%s SEQ:%hu\n",format_eui64(src->id),
-          format_prefix(src->prefix,src->plen), src->seqno);
-      }
-      route_stream_done(routes);
-  }
-  printf("$$$$$$$$$$$$$$$\n");
-}
-
-void printSources2() {
-  int index = 0;
-  struct source *src;
-  printf("$$$$$$$$$$$$$$\n");
-  while(sources[index]!=NULL) {
-    src=sources[index];
-    printf("SRC:%s PREX%s SEQ:%hu\n",format_eui64(src->id),
-    format_prefix(src->prefix,src->plen), src->seqno);
-    index+=1;
-  }
-  printf("$$$$$$$$$$$$$$\n");
-}

@@ -198,7 +198,7 @@ unsigned short node_centrality() {
       ptr=ptr->next;
     }
   }
-  printf("# C(node)=%hu\n",tot);
+  debugf("# C(node)=%hu\n",tot);
   return tot;
 }
 /*unsigned short node_centrality() {

@@ -180,29 +180,6 @@ find_installed_route(const unsigned char *prefix, unsigned char plen,
     return NULL;
 }
 
-struct babel_route *find_route_entry(const unsigned char *prefix,
-                        unsigned char plen)
-{
-    printf("Looking for route matching%s\n", format_prefix(prefix, plen));
-    struct babel_route *rt = NULL;
-    struct route_stream *stream = NULL;
-    stream = route_stream(ROUTE_INSTALLED); /* or _ALL, or _SS_INSTALLED */
-    while(1) {
-        rt = route_stream_next(stream);
-        if(rt == NULL) break;
-        /*printf("\tNow comparing %s\n",
-        format_prefix(rt->src->prefix, rt->src->plen));*/
-        if(
-          (prefix_cmp(rt->src->prefix, rt->src->plen, prefix, plen) == PST_MORE_SPECIFIC)
-          || (prefix_cmp(rt->src->prefix, rt->src->plen, prefix, plen) == PST_EQUALS)
-              ) {
-            return rt;
-        }
-    }
-    route_stream_done(stream);
-    return rt;
-}
-
 /* Returns an overestimate of the number of installed routes. */
 int
 installed_routes_estimate(void)
@@ -458,14 +435,14 @@ route_stream_done(struct route_stream *stream)
 int
 metric_to_kernel(int metric)
 {
-	if(metric >= INFINITY) {
-		return KERNEL_INFINITY;
-	} else if(reflect_kernel_metric) {
-		int r = kernel_metric + metric;
-		return r >= KERNEL_INFINITY ? KERNEL_INFINITY : r;
-	} else {
-		return kernel_metric;
-	}
+        if(metric >= INFINITY) {
+                return KERNEL_INFINITY;
+        } else if(reflect_kernel_metric) {
+                int r = kernel_metric + metric;
+                return r >= KERNEL_INFINITY ? KERNEL_INFINITY : r;
+        } else {
+                return kernel_metric;
+        }
 }
 
 /* This is used to maintain the invariant that the installed route is at

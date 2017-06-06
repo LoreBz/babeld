@@ -102,8 +102,7 @@ int v4mapped(const unsigned char *address) ATTRIBUTE ((pure));
 void v4tov6(unsigned char *dst, const unsigned char *src);
 int daemonise(void);
 int set_src_prefix(unsigned char *src_addr, unsigned char *src_plen);
-const char *format_time();
-
+const char *format_time(struct timeval *stv);
 
 enum prefix_status {
     PST_EQUALS = 0,

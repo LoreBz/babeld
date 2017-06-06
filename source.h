@@ -31,7 +31,6 @@ struct source {
     unsigned short seqno;
     unsigned short metric;
     unsigned short route_count;
-    struct contribute *contributors;
     time_t time;
 };
 
@@ -47,5 +46,3 @@ void update_source(struct source *src,
                    unsigned short seqno, unsigned short metric);
 void expire_sources(void);
 void check_sources_released(void);
-void printSources();
-void printSources2();

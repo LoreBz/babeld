@@ -35,12 +35,8 @@ THE SOFTWARE.
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-//#include <netdb.h>
-//#include <ifaddrs.h>
-
 #include "babeld.h"
 #include "util.h"
-#include "interface.h"
 
 int
 roughly(int value)
@@ -521,32 +517,19 @@ prefix_cmp(const unsigned char *p1, unsigned char plen1,
         return PST_EQUALS;
 }
 
-const char *format_time(){
+const char *format_time(struct timeval *stv){
 	time_t nowtime;
 	struct tm *nowtm;
 	char tmbuf[64];
 	static char buf[64];
 
-  struct timeval stv;
-	gettimeofday(&stv, NULL);
+  //struct timeval stv;
+	//gettimeofday(stv, NULL);
 
-  nowtime = stv.tv_sec;
+  nowtime = stv->tv_sec;
 	nowtm = localtime(&nowtime);
 	//strftime(tmbuf, sizeof tmbuf, "%d-%m-%Y %H:%M:%S", nowtm);
   strftime(tmbuf, sizeof tmbuf, "%H:%M:%S", nowtm);
-	snprintf(buf, sizeof buf, "%s.%06ld", tmbuf, stv.tv_usec);
+	snprintf(buf, sizeof buf, "%s.%06ld", tmbuf, stv->tv_usec);
 	return &(buf[0]);
-}
-
-unsigned long getMicroDiff(struct timeval *great, struct timeval *small) {
-  int gsec=great->tv_sec;
-  int ssec=small->tv_sec;
-  int gusec=great->tv_usec;
-  int susec=small->tv_usec;
-
-  unsigned long sdiff=gsec-ssec;
-  sdiff*=1000000;
-  unsigned long retval=sdiff+gusec-susec;
-  return retval;
-
 }

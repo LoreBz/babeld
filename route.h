@@ -40,7 +40,6 @@ struct babel_route {
     short installed;
     short channels_len;
     unsigned char *channels;
-    struct contribute *contributors;
     struct babel_route *next;
 };
 
@@ -78,8 +77,6 @@ struct babel_route *find_route(const unsigned char *prefix, unsigned char plen,
 struct babel_route *find_installed_route(const unsigned char *prefix,
                         unsigned char plen, const unsigned char *src_prefix,
                         unsigned char src_plen);
-struct babel_route *find_route_entry(const unsigned char *prefix,
-                        unsigned char plen);
 int installed_routes_estimate(void);
 void flush_route(struct babel_route *route);
 void flush_all_routes(void);
